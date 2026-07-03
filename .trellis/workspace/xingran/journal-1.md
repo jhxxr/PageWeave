@@ -73,3 +73,36 @@ Verified PageWeave local PDF translator MVP quality gates, confirmed spec knowle
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: Complete PageWeave strict MVP hardening
+
+**Date**: 2026-07-03
+**Task**: Complete PageWeave strict MVP hardening
+**Branch**: `master`
+
+### Summary
+
+Hardened strict single-PDF MVP translation flow, fixed cancellable BabelDOC runner lifecycle, upgraded current-task visibility, aligned sidecar/runtime copy, updated backend cancellation spec, and verified pnpm build/cargo check/cargo test.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8f6d818` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
