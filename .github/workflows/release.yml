@@ -107,8 +107,21 @@ jobs:
           releaseBody: |
             Automated PageWeave Windows build.
 
+            Offline assets are published as a separate optional `offline_assets_*.zip` attachment.
+
             Commit: ${{ github.sha }}
             Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           releaseDraft: false
           prerelease: false
           args: --target x86_64-pc-windows-msvc
+
+      - name: Upload optional offline assets
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $asset = Get-ChildItem -Path "sidecar/assets" -Filter "offline_assets_*.zip" | Select-Object -First 1
+          if (-not $asset) {
+            throw "offline_assets_*.zip was not generated"
+          }
+          gh release upload "pageweave-v$env:PAGEWEAVE_VERSION" $asset.FullName --clobber

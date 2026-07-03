@@ -110,3 +110,80 @@ headers = {"User-Agent": "PageWeave/0.1"}
 # Loaded by PyInstaller before BabelDOC creates OpenAI clients.
 runtime_hooks=[str(ROOT / "sidecar" / "sitecustomize.py")]
 ```
+
+---
+
+## Scenario: Optional Offline BabelDOC Assets
+
+### 1. Scope / Trigger
+
+- Trigger: BabelDOC needs large model/font assets for first-run PDF translation, but `offline_assets_*.zip` is larger than GitHub's normal 100MB Git blob limit.
+- Scope: Release packaging, Rust Tauri commands, frontend settings controls, and BabelDOC cache restoration.
+- Rule: Offline assets are optional runtime packages. They must never be committed to Git; publish them as GitHub Release attachments.
+
+### 2. Signatures
+
+- Release asset name: `offline_assets_*.zip`
+- Repository source for online install: `https://api.github.com/repos/jhxxr/PageWeave/releases/latest`
+- Rust commands:
+  - `get_offline_assets_info() -> OfflineAssetsInfo`
+  - `install_offline_assets_from_release(app) -> OfflineAssetsInstallResult`
+  - `install_offline_assets_from_file(path: String) -> OfflineAssetsInstallResult`
+- Frontend API wrappers:
+  - `translateApi.offlineAssetsInfo()`
+  - `translateApi.installOfflineAssetsFromRelease()`
+  - `translateApi.installOfflineAssetsFromFile(path)`
+
+### 3. Contracts
+
+- `OfflineAssetsInfo` fields:
+  - `installed: boolean`
+  - `cache_dir: string`
+  - `size_bytes: number`
+  - `message: string`
+- `OfflineAssetsInstallResult` fields:
+  - `ok: boolean`
+  - `cache_dir: string`
+  - `asset_name?: string`
+  - `message: string`
+- Online install must discover the newest Release asset whose name starts with `offline_assets_` and ends with `.zip`.
+- Local install must accept only a selected `offline_assets_*.zip` file, then pass its parent directory to BabelDOC `--restore-offline-assets`.
+- Restoration must use the bundled sidecar first, then `babeldoc` on PATH, then `python -m babeldoc`.
+- Runtime cache path detection must match BabelDOC's default cache shape: `$BABELDOC_CACHE_DIR`, `$XDG_CACHE_HOME/babeldoc`, or `<home>/.cache/babeldoc`.
+
+### 4. Validation & Error Matrix
+
+- Latest GitHub Release has no matching asset -> return `not_found`.
+- Selected local file does not exist -> return `not_found`.
+- Selected local file is not named `offline_assets_*.zip` -> return `invalid_input`.
+- No sidecar/PATH BabelDOC/Python module can restore assets -> return `translate` or `io` error with captured process output.
+- Cache size remains below the ready threshold after restore -> return `ok=false` with the cache path for user diagnosis.
+
+### 5. Good/Base/Bad Cases
+
+- Good: User clicks Settings -> Install online; PageWeave downloads the Release asset, restores it, and Settings shows installed cache size.
+- Base: User downloads the Release zip manually and chooses it from Settings; PageWeave restores from the local file without needing GitHub access.
+- Bad: `sidecar/assets/offline_assets_*.zip` is committed to Git. GitHub rejects push with GH001 or bloats repository history.
+
+### 6. Tests Required
+
+- `cargo check` validates Rust command signatures and error propagation.
+- `pnpm exec tsc --noEmit` validates TypeScript mirrors and settings-page API calls.
+- `pnpm build` validates the settings UI bundle.
+- Manual release smoke test: after CI publishes a Release, confirm it contains one `offline_assets_*.zip` attachment.
+- Manual app smoke test: install online from Settings, then refresh status and verify the cache path/size changes.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```text
+git add sidecar/assets/offline_assets_*.zip
+```
+
+#### Correct
+
+```yaml
+- name: Upload optional offline assets
+  run: gh release upload "pageweave-v$env:PAGEWEAVE_VERSION" $asset.FullName --clobber
+```

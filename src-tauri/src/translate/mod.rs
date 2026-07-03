@@ -1,4 +1,5 @@
 pub mod args;
+pub mod assets;
 pub mod commands;
 pub mod model;
 pub mod progress;

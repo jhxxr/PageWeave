@@ -1,26 +1,33 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
+  Alert,
   Button,
   Card,
   Divider,
   Input,
   InputNumber,
+  message,
   Select,
   Space,
   Typography,
 } from "antd";
-import { FolderOpenOutlined } from "@ant-design/icons";
+import { CloudDownloadOutlined, FolderOpenOutlined, InboxOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useProviderStore } from "../../stores/providerStore";
 import { LANGUAGES } from "../../shared/constants";
-import type { AppSettings } from "../../types";
+import { translateApi } from "../../services/api";
+import type { AppSettings, OfflineAssetsInfo } from "../../types";
 
 const { Text, Paragraph } = Typography;
 
 export default function SettingsPage() {
   const { t } = useTranslation();
+  const [messageApi, contextHolder] = message.useMessage();
+  const [offlineInfo, setOfflineInfo] = useState<OfflineAssetsInfo | null>(null);
+  const [installingOnline, setInstallingOnline] = useState(false);
+  const [installingLocal, setInstallingLocal] = useState(false);
   const s = useSettingsStore();
   const providers = useProviderStore((s) => s.providers);
 
@@ -28,6 +35,10 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!s.settings) void s.load();
   }, [s]);
+
+  useEffect(() => {
+    void refreshOfflineAssetsInfo();
+  }, []);
 
   const cur: AppSettings = s.settings ?? {
     theme: "system",
@@ -45,8 +56,50 @@ export default function SettingsPage() {
     if (typeof res === "string") await s.patch({ default_output_dir: res });
   }
 
+  async function refreshOfflineAssetsInfo() {
+    try {
+      setOfflineInfo(await translateApi.offlineAssetsInfo());
+    } catch (e) {
+      messageApi.error((e as Error).message);
+    }
+  }
+
+  async function installFromRelease() {
+    setInstallingOnline(true);
+    try {
+      const res = await translateApi.installOfflineAssetsFromRelease();
+      messageApi.success(res.message);
+      await refreshOfflineAssetsInfo();
+    } catch (e) {
+      messageApi.error((e as Error).message);
+    } finally {
+      setInstallingOnline(false);
+    }
+  }
+
+  async function installFromLocalFile() {
+    const res = await openDialog({
+      multiple: false,
+      filters: [{ name: "BabelDOC offline assets", extensions: ["zip"] }],
+    });
+    if (typeof res !== "string") return;
+
+    setInstallingLocal(true);
+    try {
+      const result = await translateApi.installOfflineAssetsFromFile(res);
+      messageApi.success(result.message);
+      await refreshOfflineAssetsInfo();
+    } catch (e) {
+      messageApi.error((e as Error).message);
+    } finally {
+      setInstallingLocal(false);
+    }
+  }
+
   return (
-    <Card title={t("settings.title")} variant="borderless">
+    <>
+      {contextHolder}
+      <Card title={t("settings.title")} variant="borderless">
       <Space direction="vertical" size="middle" style={{ width: 520 }}>
         <div>
           <Text type="secondary">{t("settings.theme")}</Text>
@@ -124,6 +177,45 @@ export default function SettingsPage() {
 
         <Divider />
         <div>
+          <Text strong>{t("settings.offlineAssets")}</Text>
+          <Alert
+            style={{ marginTop: 8, marginBottom: 12 }}
+            type={offlineInfo?.installed ? "success" : "info"}
+            showIcon
+            message={
+              offlineInfo?.installed
+                ? t("settings.offlineAssetsReady")
+                : t("settings.offlineAssetsMissing")
+            }
+            description={
+              offlineInfo
+                ? `${t("settings.cacheDir")}: ${offlineInfo.cache_dir} · ${formatBytes(
+                    offlineInfo.size_bytes,
+                  )}`
+                : t("settings.loading")
+            }
+          />
+          <Space wrap>
+            <Button
+              icon={<CloudDownloadOutlined />}
+              loading={installingOnline}
+              onClick={installFromRelease}
+            >
+              {t("settings.installFromRelease")}
+            </Button>
+            <Button
+              icon={<InboxOutlined />}
+              loading={installingLocal}
+              onClick={installFromLocalFile}
+            >
+              {t("settings.installFromLocal")}
+            </Button>
+            <Button onClick={refreshOfflineAssetsInfo}>{t("settings.refresh")}</Button>
+          </Space>
+        </div>
+
+        <Divider />
+        <div>
           <Text strong>{t("settings.about")}</Text>
           <Paragraph style={{ marginTop: 8 }}>
             <div>
@@ -139,6 +231,14 @@ export default function SettingsPage() {
           </Paragraph>
         </div>
       </Space>
-    </Card>
+      </Card>
+    </>
   );
+}
+
+function formatBytes(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 MB";
+  const mb = bytes / 1024 / 1024;
+  if (mb < 1024) return `${mb.toFixed(1)} MB`;
+  return `${(mb / 1024).toFixed(2)} GB`;
 }

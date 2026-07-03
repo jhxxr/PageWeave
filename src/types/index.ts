@@ -91,6 +91,20 @@ export interface BabeldocInfo {
   hint: string;
 }
 
+export interface OfflineAssetsInfo {
+  installed: boolean;
+  cache_dir: string;
+  size_bytes: number;
+  message: string;
+}
+
+export interface OfflineAssetsInstallResult {
+  ok: boolean;
+  cache_dir: string;
+  asset_name?: string;
+  message: string;
+}
+
 export type TranslateEvent =
   | { task_id: string; type: "log"; line: string; stream: string }
   | {

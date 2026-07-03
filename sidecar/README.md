@@ -21,7 +21,14 @@ onefile 每次启动都把 ~200MB 解压到临时目录，慢且会破坏 BabelD
 
 ## 离线资源（模型 + 字体）
 
-BabelDOC 首次翻译需下载 DocLayout-YOLO ONNX 模型（~72MB）与字体（~254MB）。`build_sidecar.sh` 在冻结后运行 `--generate-offline-assets` 打包、再 `--restore-offline-assets` 还原进 `~/.cache/babeldoc`，使最终用户**首次运行即可离线翻译**。
+BabelDOC 首次翻译需下载 DocLayout-YOLO ONNX 模型（~72MB）与字体（~254MB）。`build_sidecar.sh` 在冻结后运行 `--generate-offline-assets` 打包、再 `--restore-offline-assets` 还原进 `~/.cache/babeldoc`。
+
+离线资源包不进入 Git 仓库。CI 发布时会把 `sidecar/assets/offline_assets_*.zip` 作为可选 GitHub Release 附件上传。应用设置页提供两种安装方式：
+
+1. 在线安装：从 `jhxxr/PageWeave` 最新 Release 中查找并下载 `offline_assets_*.zip`。
+2. 本地安装：用户提前下载该 zip 后，在设置页选择本地文件安装。
+
+未安装离线资源时，应用仍可运行；BabelDOC 首次翻译可能按自身逻辑联网下载资源。
 
 ## Rust 侧调用
 
@@ -41,4 +48,4 @@ BabelDOC 首次翻译需下载 DocLayout-YOLO ONNX 模型（~72MB）与字体（
 - `sidecar/build/` 是 PyInstaller `--workpath` 中间产物，只用于本地构建缓存，不提交。
 - `sidecar/dist/` 是 `build_sidecar.sh` 生成的 one-folder sidecar 输出，也不提交；发布/打包前在本机或 CI 重新生成。
 - Tauri `bundle.externalBin` 指向 `../sidecar/dist/babeldoc-sidecar/babeldoc-sidecar`，构建时会自动查找 `babeldoc-sidecar-<target-triple>.exe`。Windows 下脚本会生成 `babeldoc-sidecar-x86_64-pc-windows-msvc.exe`。
-- `sidecar/assets/offline_assets_*.zip` 是离线模型/字体资源包；只有解压后的资源内容发生变化时才提交，单纯重新打包导致的 zip blob 变化不要提交。
+- `sidecar/assets/offline_assets_*.zip` 是离线模型/字体资源包；文件超过 GitHub 普通 Git blob 限制，不提交到仓库，只作为 Release 附件分发。

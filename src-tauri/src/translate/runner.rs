@@ -235,8 +235,12 @@ fn build_command(argv: &[String]) -> tokio::process::Command {
 /// In dev this is `src-tauri/target/debug/`; in a bundled install it's the app dir.
 /// Tauri's `externalBin` would rename it to `babeldoc-sidecar-<triple>.exe`, but we
 /// also accept the plain name so a hand-placed exe works during development.
-fn resolve_sidecar() -> Option<std::path::PathBuf> {
-    let candidates = ["babeldoc-sidecar.exe", "babeldoc-sidecar"];
+pub(crate) fn resolve_sidecar() -> Option<std::path::PathBuf> {
+    let candidates = [
+        "babeldoc-sidecar.exe",
+        "babeldoc-sidecar-x86_64-pc-windows-msvc.exe",
+        "babeldoc-sidecar",
+    ];
     // 1. Next to the current executable.
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
