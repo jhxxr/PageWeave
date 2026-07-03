@@ -101,6 +101,8 @@ jobs:
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: pageweave-v__VERSION__
           releaseName: PageWeave v__VERSION__
@@ -113,6 +115,8 @@ jobs:
             Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           releaseDraft: false
           prerelease: false
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true
           args: --target x86_64-pc-windows-msvc
 
       - name: Upload optional offline assets

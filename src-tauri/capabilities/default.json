@@ -8,6 +8,8 @@
     "core:event:default",
     "opener:default",
     "dialog:default",
-    "fs:default"
+    "fs:default",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

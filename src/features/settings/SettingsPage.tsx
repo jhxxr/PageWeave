@@ -7,15 +7,23 @@ import {
   Input,
   InputNumber,
   message,
+  Progress,
   Select,
   Space,
   Typography,
 } from "antd";
-import { CloudDownloadOutlined, FolderOpenOutlined, InboxOutlined } from "@ant-design/icons";
+import {
+  CloudDownloadOutlined,
+  FolderOpenOutlined,
+  InboxOutlined,
+  ReloadOutlined,
+  SyncOutlined,
+} from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useProviderStore } from "../../stores/providerStore";
+import { useUpdateStore, type UpdateStatus } from "../../stores/updateStore";
 import { LANGUAGES } from "../../shared/constants";
 import { translateApi } from "../../services/api";
 import type { AppSettings, OfflineAssetsInfo } from "../../types";
@@ -29,6 +37,7 @@ export default function SettingsPage() {
   const [installingOnline, setInstallingOnline] = useState(false);
   const [installingLocal, setInstallingLocal] = useState(false);
   const s = useSettingsStore();
+  const updates = useUpdateStore();
   const providers = useProviderStore((s) => s.providers);
 
   // Ensure settings are loaded.
@@ -93,6 +102,26 @@ export default function SettingsPage() {
       messageApi.error((e as Error).message);
     } finally {
       setInstallingLocal(false);
+    }
+  }
+
+  async function checkForUpdates() {
+    await updates.checkForUpdates("manual");
+    const next = useUpdateStore.getState();
+    if (next.status === "upToDate") {
+      messageApi.success(t("settings.updatesUpToDate"));
+    } else if (next.status === "readyToInstall") {
+      messageApi.success(t("settings.updateReady"));
+    } else if (next.status === "error" && next.error) {
+      messageApi.error(next.error);
+    }
+  }
+
+  async function installUpdate() {
+    await updates.installAndRestart();
+    const next = useUpdateStore.getState();
+    if (next.status === "error" && next.error) {
+      messageApi.error(next.error);
     }
   }
 
@@ -219,8 +248,48 @@ export default function SettingsPage() {
           <Text strong>{t("settings.about")}</Text>
           <Paragraph style={{ marginTop: 8 }}>
             <div>
-              {t("settings.version")}: 0.1.0
+              {t("settings.version")}: {updates.appVersion || t("settings.loading")}
             </div>
+            <Alert
+              style={{ marginTop: 8, marginBottom: 12 }}
+              type={updateAlertType(updates.status)}
+              showIcon
+              message={updateStatusText(t, updates.status, updates.updateVersion)}
+              description={
+                updates.error ||
+                (updates.lastCheckedAt
+                  ? `${t("settings.lastChecked")}: ${new Date(
+                      updates.lastCheckedAt,
+                    ).toLocaleString()}`
+                  : undefined)
+              }
+            />
+            {updates.status === "downloading" && (
+              <Progress
+                percent={downloadPercent(updates.downloadedBytes, updates.contentLength)}
+                size="small"
+                style={{ marginBottom: 12 }}
+              />
+            )}
+            <Space wrap style={{ marginBottom: 12 }}>
+              <Button
+                icon={<SyncOutlined />}
+                loading={updates.status === "checking" || updates.status === "downloading"}
+                onClick={checkForUpdates}
+              >
+                {t("settings.checkUpdates")}
+              </Button>
+              {(updates.status === "readyToInstall" || updates.status === "installing") && (
+                <Button
+                  type="primary"
+                  icon={<ReloadOutlined />}
+                  loading={updates.status === "installing"}
+                  onClick={installUpdate}
+                >
+                  {t("settings.installAndRestart")}
+                </Button>
+              )}
+            </Space>
             <div>
               {t("settings.license")}: {t("settings.licenseNote")}
             </div>
@@ -241,4 +310,44 @@ function formatBytes(bytes: number) {
   const mb = bytes / 1024 / 1024;
   if (mb < 1024) return `${mb.toFixed(1)} MB`;
   return `${(mb / 1024).toFixed(2)} GB`;
+}
+
+function downloadPercent(downloaded: number, total?: number) {
+  if (!total || total <= 0) return 0;
+  return Math.min(100, Math.round((downloaded / total) * 100));
+}
+
+function updateAlertType(status: UpdateStatus) {
+  if (status === "readyToInstall") return "success";
+  if (status === "error") return "error";
+  if (status === "upToDate") return "success";
+  if (status === "checking" || status === "downloading" || status === "available") {
+    return "info";
+  }
+  return "info";
+}
+
+function updateStatusText(
+  t: (key: string, options?: Record<string, string>) => string,
+  status: UpdateStatus,
+  version?: string,
+) {
+  switch (status) {
+    case "checking":
+      return t("settings.updatesChecking");
+    case "available":
+      return t("settings.updateAvailable", { version: version ?? "" });
+    case "downloading":
+      return t("settings.updateDownloading", { version: version ?? "" });
+    case "readyToInstall":
+      return t("settings.updateReady", { version: version ?? "" });
+    case "installing":
+      return t("settings.updateInstalling");
+    case "upToDate":
+      return t("settings.updatesUpToDate");
+    case "error":
+      return t("settings.updateFailed");
+    case "idle":
+      return t("settings.updatesIdle");
+  }
 }

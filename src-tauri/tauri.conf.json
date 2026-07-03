@@ -27,6 +27,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "externalBin": [
       "../sidecar/dist/babeldoc-sidecar/babeldoc-sidecar"
@@ -38,5 +39,16 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU2NDdDRDcyNzQ1RTAwM0MKUldROEFGNTBjczFINW9lTm0rWGtkUkVES1lGYndENWZuN0o1WlRkTHlNbWpPQzc2WEY3YlhYRzAK",
+      "endpoints": [
+        "https://github.com/jhxxr/PageWeave/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

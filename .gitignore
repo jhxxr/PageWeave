@@ -26,3 +26,8 @@ Thumbs.db
 
 # Logs / local runtime
 *.log
+
+# Tauri updater signing keys (private key must never be committed)
+updater.key
+updater.key.pub
+*.key

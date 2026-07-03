@@ -14,6 +14,7 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 import { useSettingsStore } from "./stores/settingsStore";
 import { useProviderStore } from "./stores/providerStore";
 import { useTranslateStore } from "./stores/translateStore";
+import { useUpdateStore } from "./stores/updateStore";
 import { translateApi } from "./services/api";
 import type { TranslateEvent } from "./types";
 import AppRoutes from "./app/routes";
@@ -26,13 +27,15 @@ export default function App() {
   const loc = useLocation();
   const loadSettings = useSettingsStore((s) => s.load);
   const loadProviders = useProviderStore((s) => s.load);
+  const initUpdates = useUpdateStore((s) => s.init);
   const { token } = antdTheme.useToken();
 
   // Bootstrap settings + providers, and subscribe to translate events once.
   useEffect(() => {
     void loadSettings();
     void loadProviders();
-  }, [loadSettings, loadProviders]);
+    void initUpdates();
+  }, [loadSettings, loadProviders, initUpdates]);
 
   useEffect(() => {
     // Probe babeldoc once on startup.

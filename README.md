@@ -47,6 +47,20 @@ pnpm tauri build
 
 `tauri.conf.json` 的 `bundle.externalBin` 指向 sidecar exe，Tauri 会按目标 triple 重命名并纳入安装包。安装后用户无需任何前置依赖。
 
+### 应用更新签名
+
+PageWeave 使用 Tauri updater 从 `jhxxr/PageWeave` GitHub Releases 检查更新。发布时必须签名更新包：
+
+```powershell
+pnpm tauri signer generate -w updater.key
+```
+
+- `updater.key` 是私钥，不要提交到 Git。
+- `updater.key.pub` 是公钥备份，也默认不提交；需要把公钥内容写入 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`。
+- 在 GitHub 仓库 `Settings -> Secrets and variables -> Actions` 添加 `TAURI_SIGNING_PRIVATE_KEY`，值为 `updater.key` 文件内容。
+- 如果生成密钥时设置了密码，再添加 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
+- CI 发布后会上传 Tauri updater 使用的 `latest.json`。
+
 ## 安全
 
 - API Key 经 `keyring` 存入 Windows Credential Manager（DPAPI 加密），SQLite 只存 `api_key_id` 引用
