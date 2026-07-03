@@ -47,6 +47,16 @@ pub async fn get_offline_assets_info() -> AppResult<OfflineAssetsInfo> {
 pub async fn install_offline_assets_from_file(
     path: String,
 ) -> AppResult<OfflineAssetsInstallResult> {
+    let existing = offline_assets_info();
+    if existing.installed {
+        return Ok(OfflineAssetsInstallResult {
+            ok: true,
+            cache_dir: existing.cache_dir,
+            asset_name: None,
+            message: "离线资源已安装，无需重复恢复".into(),
+        });
+    }
+
     let package = PathBuf::from(path);
     if !package.exists() {
         return Err(AppError::NotFound("离线资源包不存在".into()));
@@ -91,6 +101,16 @@ pub async fn install_offline_assets_from_file(
 pub async fn install_offline_assets_from_release(
     app: AppHandle,
 ) -> AppResult<OfflineAssetsInstallResult> {
+    let existing = offline_assets_info();
+    if existing.installed {
+        return Ok(OfflineAssetsInstallResult {
+            ok: true,
+            cache_dir: existing.cache_dir,
+            asset_name: None,
+            message: "离线资源已安装，无需重复下载".into(),
+        });
+    }
+
     let client = reqwest::Client::builder().user_agent("PageWeave").build()?;
     let release = client
         .get(REPO_API_LATEST_RELEASE)

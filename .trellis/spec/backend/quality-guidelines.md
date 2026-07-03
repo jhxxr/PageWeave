@@ -149,6 +149,8 @@ runtime_hooks=[str(ROOT / "sidecar" / "sitecustomize.py")]
 - Online install must discover the newest Release asset whose name starts with `offline_assets_` and ends with `.zip`.
 - Local install must accept only a selected `offline_assets_*.zip` file, then pass its parent directory to BabelDOC `--restore-offline-assets`.
 - Restoration must use the bundled sidecar first, then `babeldoc` on PATH, then `python -m babeldoc`.
+- Install commands must short-circuit successfully when the BabelDOC cache is already ready; a user should not see a restore failure while `get_offline_assets_info()` reports `installed=true`.
+- A PyInstaller one-folder sidecar is usable only when the sidecar executable and its sibling `_internal/` runtime directory are both present. `resolve_sidecar()` must not return a bare copied/renamed exe that lacks `_internal/python*.dll`.
 - Runtime cache path detection must match BabelDOC's default cache shape: `$BABELDOC_CACHE_DIR`, `$XDG_CACHE_HOME/babeldoc`, or `<home>/.cache/babeldoc`.
 
 ### 4. Validation & Error Matrix
@@ -156,6 +158,8 @@ runtime_hooks=[str(ROOT / "sidecar" / "sitecustomize.py")]
 - Latest GitHub Release has no matching asset -> return `not_found`.
 - Selected local file does not exist -> return `not_found`.
 - Selected local file is not named `offline_assets_*.zip` -> return `invalid_input`.
+- Cache is already ready before install starts -> return `ok=true` without downloading or restoring.
+- Sidecar exe exists without `_internal/python*.dll` -> ignore it and try `babeldoc` on PATH / `python -m babeldoc`.
 - No sidecar/PATH BabelDOC/Python module can restore assets -> return `translate` or `io` error with captured process output.
 - Cache size remains below the ready threshold after restore -> return `ok=false` with the cache path for user diagnosis.
 
@@ -170,6 +174,8 @@ runtime_hooks=[str(ROOT / "sidecar" / "sitecustomize.py")]
 - `cargo check` validates Rust command signatures and error propagation.
 - `pnpm exec tsc --noEmit` validates TypeScript mirrors and settings-page API calls.
 - `pnpm build` validates the settings UI bundle.
+- With a cache larger than the ready threshold, clicking either install path returns success and does not invoke a sidecar.
+- With a bare renamed sidecar exe but no `_internal/`, sidecar resolution skips it instead of surfacing `Failed to load Python DLL`.
 - Manual release smoke test: after CI publishes a Release, confirm it contains one `offline_assets_*.zip` attachment.
 - Manual app smoke test: install online from Settings, then refresh status and verify the cache path/size changes.
 
@@ -181,9 +187,21 @@ runtime_hooks=[str(ROOT / "sidecar" / "sitecustomize.py")]
 git add sidecar/assets/offline_assets_*.zip
 ```
 
+```rust
+if path.exists() {
+    return Some(path);
+}
+```
+
 #### Correct
 
 ```yaml
 - name: Upload optional offline assets
   run: gh release upload "pageweave-v$env:PAGEWEAVE_VERSION" $asset.FullName --clobber
+```
+
+```rust
+if path.is_file() && path.parent().unwrap().join("_internal").is_dir() {
+    return Some(path);
+}
 ```

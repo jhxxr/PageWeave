@@ -232,9 +232,8 @@ fn build_command(argv: &[String]) -> tokio::process::Command {
 }
 
 /// Look for a bundled `babeldoc-sidecar(.exe)` next to the running app executable.
-/// In dev this is `src-tauri/target/debug/`; in a bundled install it's the app dir.
-/// Tauri's `externalBin` would rename it to `babeldoc-sidecar-<triple>.exe`, but we
-/// also accept the plain name so a hand-placed exe works during development.
+/// PyInstaller builds this as a one-folder sidecar, so the exe is only usable
+/// when its sibling `_internal/` runtime directory is present too.
 pub(crate) fn resolve_sidecar() -> Option<std::path::PathBuf> {
     let candidates = [
         "babeldoc-sidecar.exe",
@@ -246,7 +245,7 @@ pub(crate) fn resolve_sidecar() -> Option<std::path::PathBuf> {
         if let Some(dir) = exe.parent() {
             for name in candidates {
                 let p = dir.join(name);
-                if p.exists() {
+                if is_usable_sidecar(&p) {
                     return Some(p);
                 }
             }
@@ -254,7 +253,7 @@ pub(crate) fn resolve_sidecar() -> Option<std::path::PathBuf> {
             let sub = dir.join("sidecar");
             for name in candidates {
                 let p = sub.join(name);
-                if p.exists() {
+                if is_usable_sidecar(&p) {
                     return Some(p);
                 }
             }
@@ -268,11 +267,33 @@ pub(crate) fn resolve_sidecar() -> Option<std::path::PathBuf> {
             .join("dist")
             .join("babeldoc-sidecar")
             .join("babeldoc-sidecar.exe");
-        if p.exists() {
+        if is_usable_sidecar(&p) {
             return Some(p);
         }
     }
     None
+}
+
+fn is_usable_sidecar(path: &std::path::Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    let Some(dir) = path.parent() else {
+        return false;
+    };
+    let internal = dir.join("_internal");
+    if !internal.is_dir() {
+        return false;
+    }
+    std::fs::read_dir(internal)
+        .ok()
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .any(|entry| {
+            let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
+            name.starts_with("python") && name.ends_with(".dll")
+        })
 }
 
 async fn read_stderr<R: tokio::io::AsyncRead + Unpin>(app: AppHandle, task_id: String, reader: R) {
