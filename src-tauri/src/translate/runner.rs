@@ -401,14 +401,24 @@ fn scan_outputs(req: &TranslateRequest, _task_id: &str) -> Vec<String> {
     let want_dual = matches!(req.output_mode, OutputMode::Dual | OutputMode::Both);
     for entry in dir.read_dir().ok().into_iter().flatten().flatten() {
         let name = entry.file_name().to_string_lossy().to_string();
-        if want_mono && name == format!("{stem}-mono.pdf") {
+        if want_mono && is_babeldoc_output(&name, stem, "mono") {
             out.push(entry.path().to_string_lossy().to_string());
         }
-        if want_dual && name == format!("{stem}-dual.pdf") {
+        if want_dual && is_babeldoc_output(&name, stem, "dual") {
             out.push(entry.path().to_string_lossy().to_string());
         }
     }
+    out.sort();
     out
+}
+
+fn is_babeldoc_output(name: &str, stem: &str, kind: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    let stem_lower = stem.to_ascii_lowercase();
+    lower == format!("{stem_lower}-{kind}.pdf")
+        || lower.starts_with(&format!("{stem_lower}."))
+            && (lower.ends_with(&format!(".{kind}.pdf"))
+                || lower.ends_with(&format!(".{kind}.no_watermark.pdf")))
 }
 
 /// Probe whether babeldoc is available — either as a bundled sidecar next to
@@ -455,5 +465,65 @@ pub async fn probe_babeldoc() -> BabeldocInfo {
         version: if version.is_empty() { None } else { Some(version) },
         path: Some(bin.to_string_lossy().to_string()),
         hint: String::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::translate::model::TranslateProvider;
+
+    fn req(output_dir: String, mode: OutputMode) -> TranslateRequest {
+        TranslateRequest {
+            task_id: None,
+            pdf_paths: vec!["C:/tmp/pageweave-smoke-valid.pdf".into()],
+            output_dir,
+            lang_in: "en".into(),
+            lang_out: "zh".into(),
+            output_mode: mode,
+            provider: TranslateProvider {
+                base_url: "https://example.test/v1".into(),
+                api_key_id: "key_test".into(),
+                model: "m".into(),
+            },
+            qps: 1,
+        }
+    }
+
+    #[test]
+    fn scans_current_babeldoc_output_names() {
+        let dir = std::env::temp_dir().join(format!(
+            "pageweave_scan_outputs_{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("pageweave-smoke-valid.zh.mono.pdf"), b"mono").unwrap();
+        std::fs::write(dir.join("pageweave-smoke-valid.zh.dual.pdf"), b"dual").unwrap();
+
+        let outputs = scan_outputs(&req(dir.to_string_lossy().to_string(), OutputMode::Both), "t");
+
+        assert_eq!(outputs.len(), 2);
+        assert!(outputs.iter().any(|p| p.ends_with(".zh.mono.pdf")));
+        assert!(outputs.iter().any(|p| p.ends_with(".zh.dual.pdf")));
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn scans_legacy_babeldoc_output_names() {
+        let dir = std::env::temp_dir().join(format!(
+            "pageweave_scan_outputs_{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("pageweave-smoke-valid-mono.pdf"), b"mono").unwrap();
+        std::fs::write(dir.join("pageweave-smoke-valid-dual.pdf"), b"dual").unwrap();
+
+        let outputs = scan_outputs(&req(dir.to_string_lossy().to_string(), OutputMode::Mono), "t");
+
+        assert_eq!(outputs.len(), 1);
+        assert!(outputs[0].ends_with("-mono.pdf"));
+
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

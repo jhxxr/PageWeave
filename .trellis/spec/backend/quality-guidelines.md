@@ -282,3 +282,74 @@ let status = tokio::select! {
     }
 };
 ```
+
+---
+
+## Scenario: BabelDOC Output File Discovery
+
+### 1. Scope / Trigger
+
+- Trigger: Rust runner reports produced PDFs to the frontend after BabelDOC exits successfully.
+- Problem: BabelDOC output naming is version-dependent. Current BabelDOC 0.6.3 emits names like `<stem>.<lang>.mono.pdf`, while older assumptions used `<stem>-mono.pdf`.
+- Scope: `translate::runner::scan_outputs` and any future UI logic that relies on generated output paths.
+
+### 2. Signatures
+
+- Function: `scan_outputs(req: &TranslateRequest, task_id: &str) -> Vec<String>`
+- Request fields used:
+  - `req.pdf_paths[0]`
+  - `req.output_dir`
+  - `req.output_mode: OutputMode`
+
+### 3. Contracts
+
+- For `OutputMode::Mono`, report mono PDFs only.
+- For `OutputMode::Dual`, report dual PDFs only.
+- For `OutputMode::Both`, report both kinds when present.
+- Recognize legacy names:
+  - `<stem>-mono.pdf`
+  - `<stem>-dual.pdf`
+- Recognize current BabelDOC names:
+  - `<stem>.<lang>.mono.pdf`
+  - `<stem>.<lang>.dual.pdf`
+  - `<stem>.<lang>.mono.no_watermark.pdf`
+  - `<stem>.<lang>.dual.no_watermark.pdf`
+- Sort returned paths for stable frontend rendering and tests.
+
+### 4. Validation & Error Matrix
+
+- Output directory is missing or unreadable -> return an empty list; translation success status may still show no output paths.
+- No matching files -> return an empty list.
+- Matching mono exists but mode is `Dual` -> exclude mono.
+- Matching dual exists but mode is `Mono` -> exclude dual.
+- Extra unrelated PDFs in output directory -> ignore them unless they match the input stem and requested kind.
+
+### 5. Good/Base/Bad Cases
+
+- Good: Real smoke with BabelDOC 0.6.3 produces `pageweave-smoke-valid.zh.mono.pdf`; the UI receives that path.
+- Base: Older output `pageweave-smoke-valid-mono.pdf` is still recognized.
+- Bad: Scanner only checks `format!("{stem}-mono.pdf")`, so successful translations appear to have no output files.
+
+### 6. Tests Required
+
+- Unit test for current BabelDOC `<stem>.<lang>.mono.pdf` / `<stem>.<lang>.dual.pdf`.
+- Unit test for legacy `<stem>-mono.pdf` / `<stem>-dual.pdf`.
+- Real smoke test after BabelDOC upgrades should verify the generated filename still matches scanner rules.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```rust
+if name == format!("{stem}-mono.pdf") {
+    out.push(path);
+}
+```
+
+#### Correct
+
+```rust
+if want_mono && is_babeldoc_output(&name, stem, "mono") {
+    out.push(path);
+}
+```
