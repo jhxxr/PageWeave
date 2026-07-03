@@ -205,3 +205,80 @@ if path.is_file() && path.parent().unwrap().join("_internal").is_dir() {
     return Some(path);
 }
 ```
+
+---
+
+## Scenario: Cancellable Tauri Child Processes
+
+### 1. Scope / Trigger
+
+- Trigger: A Tauri command starts a long-running child process and exposes a separate cancel command.
+- Problem: `tokio::process::Child` cannot be safely "shared" by storing it in a registry and then moving it into the runner for `wait()`. Once the runner takes ownership, the registry no longer has a live child to kill.
+- Scope: Translation runner and any future backend task runner that spawns an external process.
+
+### 2. Signatures
+
+- Registry task shape:
+  - `RunningTask { cancel_tx: mpsc::UnboundedSender<()>, status: String }`
+- Start command:
+  - `start_translate(app, req) -> AppResult<String>`
+- Cancel command:
+  - `cancel_translate(app, task_id) -> AppResult<bool>`
+
+### 3. Contracts
+
+- The runner owns the `Child` for its full lifetime.
+- The registry stores a cancellation sender, not the child itself.
+- Cancel sets task status to `cancelled`, sends one cancellation signal, and returns `true` when the task exists.
+- The runner listens for either `child.wait()` or cancellation. On cancellation it calls `child.start_kill()`, then waits again to reap the process.
+- Final status emission must not overwrite a cancelled task with a generic error just because the killed process exits non-zero.
+
+### 4. Validation & Error Matrix
+
+- `task_id` not found -> `cancel_translate` returns `false`.
+- Cancellation signal receiver is closed -> ignore send failure; task is already finishing.
+- Child exits normally before cancel -> emit `success` or `error` based on exit status.
+- Cancel arrives before child exits -> call `start_kill()`, wait for exit, emit `cancelled`.
+- Killed child exits non-zero -> still emit `cancelled`, not `error`.
+
+### 5. Good/Base/Bad Cases
+
+- Good: User clicks Cancel during BabelDOC translation; the runner kills BabelDOC, reaps it, removes the registry entry, and the UI stays cancelled.
+- Base: BabelDOC finishes successfully without cancellation; the runner emits success and output files.
+- Bad: Registry stores `Arc<Mutex<Option<Child>>>`, runner takes the child out for `wait()`, and later cancel sees `None` or blocks until the process has already ended.
+
+### 6. Tests Required
+
+- `cargo check` for command and registry signatures.
+- Unit or integration test for future runners should cover: start process, cancel task, assert cancelled status is emitted, assert no later error status overwrites it.
+- Manual smoke test for BabelDOC: start a long translation, cancel while running, verify the child process disappears and UI status remains cancelled.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```rust
+pub struct RunningTask {
+    pub child: Arc<Mutex<Option<Child>>>,
+}
+
+let mut owned_child = child_slot.lock().await.take();
+let status = owned_child.as_mut().unwrap().wait().await;
+```
+
+#### Correct
+
+```rust
+pub struct RunningTask {
+    pub cancel_tx: mpsc::UnboundedSender<()>,
+    pub status: String,
+}
+
+let status = tokio::select! {
+    wait = child.wait() => wait,
+    _ = cancel_rx.recv() => {
+        let _ = child.start_kill();
+        child.wait().await
+    }
+};
+```

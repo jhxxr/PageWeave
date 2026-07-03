@@ -13,7 +13,7 @@ pub struct TranslateRequest {
     /// Optional client-provided id; otherwise Rust generates one.
     #[serde(default)]
     pub task_id: Option<String>,
-    /// MVP: only the first PDF is translated. The slice is kept so batch stays open.
+    /// Strict MVP: exactly one PDF per request. Batch translation is a later task.
     pub pdf_paths: Vec<String>,
     pub output_dir: String,
     pub lang_in: String,

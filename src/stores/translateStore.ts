@@ -82,13 +82,9 @@ export const useTranslateStore = create<TranslateState>((set, get) => ({
   babeldocInstalled: null,
   babeldocHint: "",
 
-  setFiles: (f) => set({ files: f }),
+  setFiles: (f) => set({ files: f.slice(0, 1) }),
   addFiles: (f) =>
-    set({
-      files: [...get().files, ...f].filter(
-        (v, i, arr) => arr.findIndex((x) => x.path === v.path) === i,
-      ),
-    }),
+    set({ files: f.slice(0, 1) }),
   removeFile: (path) =>
     set({ files: get().files.filter((x) => x.path !== path) }),
   setOutputDir: (d) => set({ outputDir: d }),
@@ -99,7 +95,11 @@ export const useTranslateStore = create<TranslateState>((set, get) => ({
   setModel: (m) => set({ model: m }),
   setQps: (q) => set({ qps: q }),
   setTaskId: (id) => set({ taskId: id }),
-  setStatus: (s) => set({ status: s }),
+  setStatus: (s) =>
+    set((st) => ({
+      status: s,
+      files: st.files.map((f) => ({ ...f, status: s })),
+    })),
   setProgress: (p, stage) =>
     set((st) => ({
       progress: p,

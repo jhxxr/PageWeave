@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Child;
-use tokio::sync::Mutex;
+use tokio::sync::mpsc;
 
 use crate::secrets;
 use crate::translate::args;
@@ -89,8 +89,7 @@ pub async fn run_translate(app: AppHandle, task_id: String, req: TranslateReques
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
 
-    // Share the child between the registry (for cancel) and the runner (for wait).
-    let child_slot: Arc<Mutex<Option<Child>>> = Arc::new(Mutex::new(Some(child)));
+    let (cancel_tx, mut cancel_rx) = mpsc::unbounded_channel::<()>();
 
     emit(TranslateEvent::Status {
         task_id: task_id.clone(),
@@ -103,7 +102,7 @@ pub async fn run_translate(app: AppHandle, task_id: String, req: TranslateReques
         reg.insert(
             task_id.clone(),
             RunningTask {
-                child: child_slot.clone(),
+                cancel_tx,
                 status: "running".into(),
             },
         )
@@ -152,31 +151,48 @@ pub async fn run_translate(app: AppHandle, task_id: String, req: TranslateReques
         });
     }
 
-    // Take the child out of the shared slot so we can `wait` on it exclusively.
-    // cancel_translate may have already killed it; `wait` will still observe exit.
-    let mut owned_child = {
-        let mut g = child_slot.lock().await;
-        g.take()
-    };
-
-    let status = match owned_child.as_mut() {
-        Some(c) => c.wait().await,
-        None => // already taken (shouldn't happen) — synthesize an error
-            Err(std::io::Error::new(std::io::ErrorKind::Other, "child already taken")),
+    let status = tokio::select! {
+        wait = child.wait() => wait,
+        _ = cancel_rx.recv() => {
+            let _ = child.start_kill();
+            child.wait().await
+        }
     };
     let exit_ok = matches!(&status, Ok(s) if s.success());
+
+    let was_cancelled = if let Some(reg) = app.try_state::<Arc<TaskRegistry>>() {
+        matches!(reg.status(&task_id_for_wait).await.as_deref(), Some("cancelled"))
+    } else {
+        false
+    };
 
     // Clear the registry entry.
     if let Some(reg) = app.try_state::<Arc<TaskRegistry>>() {
         reg.set_status(
             &task_id_for_wait,
-            if exit_ok { "success" } else { "cancelled_or_error" },
+            if exit_ok {
+                "success"
+            } else if was_cancelled {
+                "cancelled"
+            } else {
+                "cancelled_or_error"
+            },
         )
         .await;
         reg.remove(&task_id_for_wait).await;
     }
 
-    if exit_ok {
+    if was_cancelled {
+        let _ = app_for_wait.emit(
+            "translate://progress",
+            &TranslateEvent::Status {
+                task_id: task_id_for_wait.clone(),
+                status: "cancelled".into(),
+                output_files: None,
+                message: Some("用户已取消".into()),
+            },
+        );
+    } else if exit_ok {
         // Scan output dir for produced PDFs.
         let files = scan_outputs(&req, &task_id_for_wait);
         let _ = app_for_wait.emit(
@@ -422,7 +438,7 @@ pub async fn probe_babeldoc() -> BabeldocInfo {
                 installed: false,
                 version: None,
                 path: None,
-                hint: "未检测到 babeldoc。请先安装 Python 3.10–3.13 并运行: pip install BabelDOC".into(),
+                hint: "未检测到内置 BabelDOC sidecar。开发环境可安装 Python 3.10–3.13 并运行: pip install BabelDOC".into(),
             };
         }
     };

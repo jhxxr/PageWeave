@@ -1,16 +1,14 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use tokio::process::Child;
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 
 /// One running (or recently finished) translate task, owned by the registry.
 ///
-/// `child` is shared via `Arc<Mutex<Option<Child>>>`: the runner holds one clone
-/// (and performs `wait` on the `Child` it takes out), the registry holds another.
-/// `cancel_translate` calls `start_kill()` on the borrowed child.
+/// The runner owns the child process. `cancel_translate` sends a cancellation
+/// signal through the registry so the runner can kill and reap the process.
 pub struct RunningTask {
-    pub child: Arc<Mutex<Option<Child>>>,
+    pub cancel_tx: mpsc::UnboundedSender<()>,
     pub status: String,
 }
 
@@ -36,18 +34,20 @@ impl TaskRegistry {
         }
     }
 
-    /// Signal the child to kill. Returns true if there was a live child.
+    /// Signal the runner to kill the child. Returns true if the task exists.
     pub async fn kill(&self, task_id: &str) -> bool {
-        let g = self.inner.lock().await;
-        let Some(task) = g.get(task_id) else {
+        let mut g = self.inner.lock().await;
+        let Some(task) = g.get_mut(task_id) else {
             return false;
         };
-        let mut guard = task.child.lock().await;
-        if let Some(child) = guard.as_mut() {
-            let _ = child.start_kill();
-            return true;
-        }
-        false
+        task.status = "cancelled".into();
+        let _ = task.cancel_tx.send(());
+        true
+    }
+
+    pub async fn status(&self, task_id: &str) -> Option<String> {
+        let g = self.inner.lock().await;
+        g.get(task_id).map(|t| t.status.clone())
     }
 
     /// Remove a task entry (after the runner finishes).

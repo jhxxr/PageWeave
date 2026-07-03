@@ -88,8 +88,11 @@ export default function TranslatePage() {
           p.toLowerCase().endsWith(".pdf"),
         );
         if (!paths.length) return;
+        if (paths.length > 1) {
+          message.info(t("translate.onePdfOnly"));
+        }
         const items: FileItem[] = await Promise.all(
-          paths.map(async (p) => {
+          paths.slice(0, 1).map(async (p) => {
             const name = p.split(/[\\/]/).pop() ?? p;
             let size = 0;
             try {
@@ -109,7 +112,7 @@ export default function TranslatePage() {
 
   async function pickFiles() {
     const res = await openDialog({
-      multiple: true,
+      multiple: false,
       filters: [{ name: "PDF", extensions: ["pdf"] }],
     });
     const paths = Array.isArray(res) ? res : res ? [res] : [];
@@ -141,16 +144,31 @@ export default function TranslatePage() {
   const canStart =
     st.files.length > 0 &&
     !!st.providerId &&
-    !!st.outputDir &&
+    !!(st.model || selectedProvider?.default_model) &&
+    !!st.outputDir.trim() &&
     st.status !== "running";
 
   async function start() {
+    const first = st.files[0];
+    if (!first) {
+      message.warning(t("translate.noPdf"));
+      return;
+    }
     if (!selectedProvider) {
       message.warning(t("translate.noProvider"));
       return;
     }
     if (!selectedProvider.has_api_key) {
-      message.warning(t("translate.noProvider"));
+      message.warning(t("translate.noApiKey"));
+      return;
+    }
+    const model = st.model || selectedProvider.default_model;
+    if (!model) {
+      message.warning(t("translate.noModel"));
+      return;
+    }
+    if (!st.outputDir.trim()) {
+      message.warning(t("translate.noOutputDir"));
       return;
     }
     if (st.babeldocInstalled === false) {
@@ -162,8 +180,8 @@ export default function TranslatePage() {
     st.setOutputFiles([]);
     st.setStatusMessage("");
     st.setProgress(0, "");
+    st.setTaskId(null);
     st.setStatus("running");
-    const first = st.files[0];
     const req: TranslateRequest = {
       pdf_paths: [first.path],
       output_dir: st.outputDir,
@@ -173,7 +191,7 @@ export default function TranslatePage() {
       provider: {
         base_url: selectedProvider.base_url,
         api_key_id: selectedProvider.api_key_id,
-        model: st.model || selectedProvider.default_model,
+        model,
       },
       qps: st.qps,
     };
@@ -236,6 +254,9 @@ export default function TranslatePage() {
           <InboxOutlined style={{ fontSize: 32, color: "#1677ff" }} />
           <div style={{ marginTop: 8 }}>
             <Text>{t("translate.dropHere")}</Text>
+          </div>
+          <div style={{ marginTop: 4 }}>
+            <Text type="secondary">{t("translate.onePdfHint")}</Text>
           </div>
         </div>
 

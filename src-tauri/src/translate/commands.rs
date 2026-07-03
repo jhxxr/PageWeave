@@ -17,6 +17,29 @@ pub async fn start_translate(
     if req.pdf_paths.is_empty() {
         return Err(AppError::InvalidInput("至少需要一个 PDF 文件".into()));
     }
+    if req.pdf_paths.len() > 1 {
+        return Err(AppError::InvalidInput(
+            "当前 MVP 仅支持一次翻译一个 PDF 文件".into(),
+        ));
+    }
+    if req.output_dir.trim().is_empty() {
+        return Err(AppError::InvalidInput("请选择输出目录".into()));
+    }
+    if req.lang_in.trim().is_empty() || req.lang_out.trim().is_empty() {
+        return Err(AppError::InvalidInput("请选择源语言和目标语言".into()));
+    }
+    if req.provider.base_url.trim().is_empty() {
+        return Err(AppError::InvalidInput("服务商 Base URL 不能为空".into()));
+    }
+    if req.provider.api_key_id.trim().is_empty() {
+        return Err(AppError::InvalidInput("服务商 API Key 未设置".into()));
+    }
+    if req.provider.model.trim().is_empty() {
+        return Err(AppError::InvalidInput("请选择或输入模型".into()));
+    }
+    if req.qps == 0 {
+        return Err(AppError::InvalidInput("QPS 必须大于 0".into()));
+    }
     let task_id = req
         .task_id
         .clone()
