@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 4
+- **Total Sessions**: 5
 - **Last Active**: 2026-07-03
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~142 | Active |
+| `journal-1.md` | ~175 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 5 | 2026-07-03 | Add app updater integration | `980d4df` | `master` |
 | 4 | 2026-07-03 | Real API smoke and sidecar polish | `677dbed`, `8ec8acb` | `master` |
 | 3 | 2026-07-03 | Complete PageWeave strict MVP hardening | `8f6d818` | `master` |
 | 2 | 2026-07-03 | Finish local format translator MVP | `cc3a387`, `b014f0d`, `ae3b873` | `master` |

@@ -140,3 +140,36 @@ Ran real provider and BabelDOC sidecar smoke with user-provided API credentials 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: Add app updater integration
+
+**Date**: 2026-07-03
+**Task**: Add app updater integration
+**Branch**: `master`
+
+### Summary
+
+Implemented Tauri updater support with background check/download, user-confirmed install/restart, GitHub Releases latest.json configuration, signing secret wiring, and updater key ignore/documentation.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `980d4df` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
