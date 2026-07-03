@@ -30,3 +30,7 @@
 - BabelDOC sidecar translated the temporary PDF successfully and produced `pageweave-smoke-valid.zh.mono.pdf`.
 - Discovered blocker: Rust output scanner expected legacy `stem-mono.pdf` naming and would miss current BabelDOC `stem.zh.mono.pdf` outputs.
 - Fix: `scan_outputs()` now recognizes current and legacy mono/dual naming, with regression tests.
+- Discovered sidecar UX issue: PyInstaller multiprocessing child args leaked into BabelDOC argparse, logging `--multiprocessing-fork` errors even though translation eventually succeeded.
+- Fix: `sidecar/babeldoc_entry.py` now calls `multiprocessing.freeze_support()` before invoking BabelDOC CLI.
+- Rebuilt local sidecar dist for verification only; generated dist remains ignored and uncommitted.
+- Follow-up smoke after rebuild succeeded and no longer logged `multiprocessing-fork`, `unrecognized arguments`, or `PDF save with clean=False failed`.

@@ -353,3 +353,69 @@ if want_mono && is_babeldoc_output(&name, stem, "mono") {
     out.push(path);
 }
 ```
+
+---
+
+## Scenario: Bundled Sidecar Multiprocessing Freeze Support
+
+### 1. Scope / Trigger
+
+- Trigger: The bundled `babeldoc-sidecar.exe` is built with PyInstaller and BabelDOC/PyMuPDF may spawn multiprocessing child processes while saving PDFs.
+- Problem: Without `multiprocessing.freeze_support()` in the sidecar entry point, child processes can re-enter `babeldoc.main:cli` with PyInstaller's `--multiprocessing-fork ...` arguments. BabelDOC argparse then logs `unrecognized arguments`, and PDF save may emit a false failure before fallback succeeds.
+- Scope: `sidecar/babeldoc_entry.py` and any future PyInstaller sidecar entry point.
+
+### 2. Signatures
+
+- Entry script: `sidecar/babeldoc_entry.py`
+- Required call:
+  - `multiprocessing.freeze_support()` before importing/running `babeldoc.main.cli`
+
+### 3. Contracts
+
+- Sidecar startup must call `freeze_support()` at the beginning of `main()`.
+- PyInstaller multiprocessing child invocations must be handled before BabelDOC CLI argument parsing.
+- The normal CLI path must preserve BabelDOC command semantics for Rust runner arguments.
+- The generated sidecar bundle must still include PyInstaller's `pyi_rth_multiprocessing` runtime hook.
+
+### 4. Validation & Error Matrix
+
+- `babeldoc-sidecar.exe --version` -> exits successfully.
+- Real translation with PDF save multiprocessing -> no `--multiprocessing-fork` in logs.
+- Logs contain `unrecognized arguments: --multiprocessing-fork` -> entry point is missing or not reaching `freeze_support()`.
+- Logs contain `PDF save with clean=False failed` but final output succeeds -> inspect multiprocessing startup before treating PDF generation as broken.
+
+### 5. Good/Base/Bad Cases
+
+- Good: Rebuilt sidecar translates a test PDF and logs `PDF save with clean=False completed successfully`.
+- Base: Non-multiprocessing translation path still works exactly like the BabelDOC CLI.
+- Bad: Entry imports and calls BabelDOC CLI directly; child process arguments fall into BabelDOC argparse and pollute the UI log.
+
+### 6. Tests Required
+
+- `python -m py_compile sidecar/babeldoc_entry.py`
+- Rebuild sidecar after changing the entry point.
+- `babeldoc-sidecar.exe --version` smoke test.
+- Real sidecar translation smoke test and grep logs for absence of `multiprocessing-fork` and `unrecognized arguments`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```python
+def main() -> int:
+    from babeldoc.main import cli
+    cli()
+    return 0
+```
+
+#### Correct
+
+```python
+import multiprocessing
+
+def main() -> int:
+    multiprocessing.freeze_support()
+    from babeldoc.main import cli
+    cli()
+    return 0
+```

@@ -6,8 +6,10 @@ calls `babeldoc.main:cli` with sys.argv, preserving the exact CLI semantics the 
 runner expects (same args, same stderr progress output).
 """
 import sys
+import multiprocessing
 
 def main() -> int:
+    multiprocessing.freeze_support()
     try:
         from babeldoc.main import cli
     except Exception as e:  # pragma: no cover - startup guard
