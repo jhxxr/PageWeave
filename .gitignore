@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+/dist/
+
+# Tauri / Rust
+src-tauri/target/
+src-tauri/Cargo.lock
+src-tauri/gen/schemas/
+
+# Generated BabelDOC sidecar bundles and PyInstaller work files
+sidecar/build/
+sidecar/dist/
+sidecar/assets/offline_assets_*.zip
+
+# Python (probe artifacts / local venvs)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Logs / local runtime
+*.log
