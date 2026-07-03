@@ -106,3 +106,37 @@ Hardened strict single-PDF MVP translation flow, fixed cancellable BabelDOC runn
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Real API smoke and sidecar polish
+
+**Date**: 2026-07-03
+**Task**: Real API smoke and sidecar polish
+**Branch**: `master`
+
+### Summary
+
+Ran real provider and BabelDOC sidecar smoke with user-provided API credentials without persisting secrets. Fixed current BabelDOC output filename discovery and PyInstaller multiprocessing freeze support, then verified py_compile, pnpm build, cargo check, and cargo test.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `677dbed` | (see git log) |
+| `8ec8acb` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
