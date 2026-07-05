@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 5
-- **Last Active**: 2026-07-03
+- **Total Sessions**: 6
+- **Last Active**: 2026-07-05
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~175 | Active |
+| `journal-1.md` | ~208 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 6 | 2026-07-05 | Fix translation readiness and progress events | `09143cd` | `master` |
 | 5 | 2026-07-03 | Add app updater integration | `980d4df` | `master` |
 | 4 | 2026-07-03 | Real API smoke and sidecar polish | `677dbed`, `8ec8acb` | `master` |
 | 3 | 2026-07-03 | Complete PageWeave strict MVP hardening | `8f6d818` | `master` |

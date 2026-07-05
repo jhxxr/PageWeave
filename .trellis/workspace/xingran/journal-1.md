@@ -173,3 +173,36 @@ Implemented Tauri updater support with background check/download, user-confirmed
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: Fix translation readiness and progress events
+
+**Date**: 2026-07-05
+**Task**: Fix translation readiness and progress events
+**Branch**: `master`
+
+### Summary
+
+Fixed PageWeave translation readiness to use required BabelDOC offline assets, removed Python fallback paths, packaged the full sidecar resource directory, allowed unsaved API keys for provider test/model fetch, and corrected translate progress event serialization so the UI receives status, log, and progress updates.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `09143cd` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
