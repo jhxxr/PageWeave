@@ -7,6 +7,7 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Child;
 use tokio::sync::mpsc;
 
+use crate::db::DbState;
 use crate::secrets;
 use crate::translate::args;
 use crate::translate::model::{BabeldocInfo, OutputMode, TranslateEvent, TranslateRequest};
@@ -20,25 +21,37 @@ pub async fn run_translate(app: AppHandle, task_id: String, req: TranslateReques
     };
 
     // 1. Resolve API key.
-    let api_key = match secrets::get_secret(&req.provider.api_key_id) {
-        Ok(Some(k)) => k,
-        Ok(None) => {
+    let api_key = {
+        let Some(db) = app.try_state::<DbState>() else {
             emit(TranslateEvent::Status {
                 task_id: task_id.clone(),
                 status: "error".into(),
                 output_files: None,
-                message: Some("API Key 未找到，请先在 API 配置页填写并保存。".into()),
+                message: Some("数据库未初始化，无法读取 API Key。".into()),
             });
             return;
-        }
-        Err(e) => {
-            emit(TranslateEvent::Status {
-                task_id: task_id.clone(),
-                status: "error".into(),
-                output_files: None,
-                message: Some(format!("读取 API Key 失败: {e}")),
-            });
-            return;
+        };
+        let conn = db.conn.lock().unwrap();
+        match secrets::get_secret(&conn, &req.provider.api_key_id) {
+            Ok(Some(k)) => k,
+            Ok(None) => {
+                emit(TranslateEvent::Status {
+                    task_id: task_id.clone(),
+                    status: "error".into(),
+                    output_files: None,
+                    message: Some("API Key 未找到，请先在 API 配置页填写并保存。".into()),
+                });
+                return;
+            }
+            Err(e) => {
+                emit(TranslateEvent::Status {
+                    task_id: task_id.clone(),
+                    status: "error".into(),
+                    output_files: None,
+                    message: Some(format!("读取 API Key 失败: {e}")),
+                });
+                return;
+            }
         }
     };
 

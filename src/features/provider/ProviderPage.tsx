@@ -272,7 +272,7 @@ function ProviderFormModal({ open, editing, presets, onClose, onSaved }: FormPro
     if (!id && !v.api_key) return;
     setTesting(true);
     try {
-      // If editing and key unchanged, use stored id; the backend reads keyring.
+      // If editing and key unchanged, use stored id; the backend reads local storage.
       const res = await providerApi.testConnection({
         api_key_id: id,
         api_key: v.api_key,

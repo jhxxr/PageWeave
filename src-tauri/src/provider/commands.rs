@@ -5,8 +5,10 @@ use crate::db::{helpers, schema, DbState};
 use crate::error::{AppError, AppResult};
 use crate::secrets;
 
-use super::model::{ConnectivityRequest, ConnectionTestResult, ModelFetchResult, ProviderCategory,
-                   ProviderPayload, ProviderRecord};
+use super::model::{
+    ConnectionTestResult, ConnectivityRequest, ModelFetchResult, ProviderCategory, ProviderPayload,
+    ProviderRecord,
+};
 use super::presets;
 
 #[derive(Serialize)]
@@ -54,7 +56,8 @@ pub fn create_provider(
         String::new()
     } else {
         let key_id = format!("key_{}", uuid::Uuid::new_v4().simple());
-        secrets::set_secret(&key_id, &payload.api_key)?;
+        let conn = db.conn.lock().unwrap();
+        secrets::set_secret(&conn, &key_id, &payload.api_key)?;
         key_id
     };
 
@@ -105,7 +108,7 @@ pub fn update_provider(
         if rec.api_key_id.is_empty() {
             rec.api_key_id = format!("key_{}", uuid::Uuid::new_v4().simple());
         }
-        secrets::set_secret(&rec.api_key_id, &payload.api_key)?;
+        secrets::set_secret(&conn, &rec.api_key_id, &payload.api_key)?;
         rec.has_api_key = true;
     }
 
@@ -121,7 +124,7 @@ pub fn delete_provider(db: State<'_, DbState>, id: String) -> AppResult<()> {
         helpers::get::<ProviderRecord>(&conn, schema::TBL_PROVIDER, &id)?;
     if let Some(r) = &rec {
         if !r.api_key_id.is_empty() {
-            let _ = secrets::delete_secret(&r.api_key_id);
+            let _ = secrets::delete_secret(&conn, &r.api_key_id);
         }
     }
     helpers::delete(&conn, schema::TBL_PROVIDER, &id)?;
@@ -140,25 +143,49 @@ pub fn set_default_provider(db: State<'_, DbState>, id: String) -> AppResult<()>
 
 /// User clicked the eye icon. Returns the plaintext key for that one provider.
 #[tauri::command]
-pub fn reveal_api_key(api_key_id: String) -> AppResult<Option<String>> {
+pub fn reveal_api_key(db: State<'_, DbState>, api_key_id: String) -> AppResult<Option<String>> {
     if api_key_id.is_empty() {
         return Ok(None);
     }
-    secrets::get_secret(&api_key_id)
+    let conn = db.conn.lock().unwrap();
+    secrets::get_secret(&conn, &api_key_id)
 }
 
 #[tauri::command]
 pub async fn test_provider_connection(
+    db: State<'_, DbState>,
     req: ConnectivityRequest,
 ) -> AppResult<ConnectionTestResult> {
-    super::connectivity::test_connection(&req).await
+    let api_key = resolve_stored_key(&db, &req)?;
+    super::connectivity::test_connection(&req, api_key).await
 }
 
 #[tauri::command]
 pub async fn fetch_provider_models(
+    db: State<'_, DbState>,
     req: ConnectivityRequest,
 ) -> AppResult<ModelFetchResult> {
-    super::connectivity::fetch_models(&req).await
+    let api_key = resolve_stored_key(&db, &req)?;
+    super::connectivity::fetch_models(&req, api_key).await
+}
+
+fn resolve_stored_key(
+    db: &State<'_, DbState>,
+    req: &ConnectivityRequest,
+) -> AppResult<Option<String>> {
+    if req
+        .api_key
+        .as_ref()
+        .map(|s| !s.trim().is_empty())
+        .unwrap_or(false)
+    {
+        return Ok(None);
+    }
+    if req.api_key_id.trim().is_empty() {
+        return Ok(None);
+    }
+    let conn = db.conn.lock().unwrap();
+    secrets::get_secret(&conn, &req.api_key_id)
 }
 
 fn next_sort_index(db: &State<'_, DbState>) -> AppResult<i32> {

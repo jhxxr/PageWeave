@@ -36,9 +36,9 @@ pub struct ProviderRecord {
     pub name: String,
     pub category: ProviderCategory,
     pub base_url: String,
-    /// Stable handle into the keyring store. Empty when no key has been saved yet.
+    /// Stable handle into the local plaintext API key store. Empty when no key has been saved yet.
     pub api_key_id: String,
-    /// True when a secret is present in keyring. Kept in sync so the UI can show a
+    /// True when a secret is present locally. Kept in sync so the UI can show a
     /// "key set" badge without ever touching the plaintext.
     pub has_api_key: bool,
     #[serde(default)]
@@ -64,7 +64,7 @@ pub struct ProviderPayload {
     pub name: String,
     pub category: ProviderCategory,
     pub base_url: String,
-    /// Empty string = leave existing key untouched. Non-empty = write to keyring.
+    /// Empty string = leave existing key untouched. Non-empty = write locally.
     #[serde(default)]
     pub api_key: String,
     #[serde(default)]

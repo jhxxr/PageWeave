@@ -1,30 +1,42 @@
-use keyring::Entry;
+use rusqlite::{params, Connection};
 
 use crate::error::{AppError, AppResult};
 
-const SERVICE: &str = "PageWeave";
+const KEY_PREFIX: &str = "secret:api-key:";
 
-pub fn set_secret(id: &str, value: &str) -> AppResult<()> {
-    let entry = Entry::new(SERVICE, id).map_err(|e| AppError::Secret(e.to_string()))?;
-    entry
-        .set_password(value)
-        .map_err(|e| AppError::Secret(e.to_string()))
+fn storage_key(id: &str) -> String {
+    format!("{KEY_PREFIX}{id}")
 }
 
-pub fn get_secret(id: &str) -> AppResult<Option<String>> {
-    let entry = Entry::new(SERVICE, id).map_err(|e| AppError::Secret(e.to_string()))?;
-    match entry.get_password() {
-        Ok(v) => Ok(Some(v)),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(AppError::Secret(e.to_string())),
+pub fn set_secret(conn: &Connection, id: &str, value: &str) -> AppResult<()> {
+    let key = storage_key(id);
+    conn.execute(
+        "INSERT INTO app_settings (key, value) VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        params![key, value],
+    )
+    .map_err(|e| AppError::Secret(e.to_string()))?;
+    Ok(())
+}
+
+pub fn get_secret(conn: &Connection, id: &str) -> AppResult<Option<String>> {
+    let key = storage_key(id);
+    let row = conn
+        .query_row(
+            "SELECT value FROM app_settings WHERE key = ?1",
+            params![key],
+            |r| r.get::<_, String>(0),
+        )
+        .ok();
+    match row {
+        Some(value) => Ok(Some(value)),
+        None => Ok(None),
     }
 }
 
-pub fn delete_secret(id: &str) -> AppResult<()> {
-    let entry = Entry::new(SERVICE, id).map_err(|e| AppError::Secret(e.to_string()))?;
-    match entry.delete_credential() {
-        Ok(_) => Ok(()),
-        Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(AppError::Secret(e.to_string())),
-    }
+pub fn delete_secret(conn: &Connection, id: &str) -> AppResult<()> {
+    let key = storage_key(id);
+    conn.execute("DELETE FROM app_settings WHERE key = ?1", params![key])
+        .map_err(|e| AppError::Secret(e.to_string()))?;
+    Ok(())
 }

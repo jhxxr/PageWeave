@@ -52,6 +52,72 @@ Questions to answer:
 
 ---
 
+## Scenario: Local Plaintext API Key Storage
+
+### 1. Scope / Trigger
+
+- Trigger: PageWeave is a local desktop app and stores provider API keys locally in plaintext, like local CLI config tools.
+- Problem: OS keyring-backed storage can report a provider as saved while translation later cannot retrieve the key from the keyring.
+- Scope: Rust secret helpers, provider commands, connectivity probes, and translation runner key resolution.
+
+### 2. Signatures
+
+- Storage table: `app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`
+- Storage key prefix: `secret:api-key:`
+- Secret helpers:
+  - `secrets::set_secret(conn: &Connection, id: &str, value: &str) -> AppResult<()>`
+  - `secrets::get_secret(conn: &Connection, id: &str) -> AppResult<Option<String>>`
+  - `secrets::delete_secret(conn: &Connection, id: &str) -> AppResult<()>`
+- Provider record fields:
+  - `api_key_id: String`
+  - `has_api_key: bool`
+
+### 3. Contracts
+
+- API key plaintext is stored directly in `app_settings.value`, not encrypted and not JSON-wrapped.
+- `api_key_id` remains the stable handle stored in `ProviderRecord`; it is not the key itself.
+- `create_provider` and `update_provider` must write non-empty `payload.api_key` through `secrets::set_secret`.
+- Empty `payload.api_key` on update means "keep the existing local key".
+- `reveal_api_key`, `test_provider_connection`, `fetch_provider_models`, and `run_translate` must resolve keys from the local SQLite store, not from OS keyring APIs.
+- Provider export must continue to omit plaintext API keys.
+
+### 4. Validation & Error Matrix
+
+- `api_key_id` is empty -> provider/translate validation reports API key not configured.
+- No row exists for `secret:api-key:{api_key_id}` -> translation emits "API Key not found" and asks the user to save it.
+- SQLite read/write fails -> surface `AppError::Secret`.
+- Provider is deleted -> delete its `secret:api-key:{api_key_id}` row.
+
+### 5. Good/Base/Bad Cases
+
+- Good: User saves a provider key, restarts the app, and translation resolves the key from the same `pageweave.db`.
+- Base: User edits provider metadata with an empty key field; the existing local plaintext key remains unchanged.
+- Bad: Reintroducing `keyring::Entry` or another OS credential store makes saved provider metadata drift from secret retrieval again.
+
+### 6. Tests Required
+
+- `cargo check` validates command signatures and helper call sites.
+- `pnpm exec tsc --noEmit` validates frontend invoke payload compatibility.
+- Manual smoke: save an API key, restart PageWeave, click reveal/test connection, then start translation.
+- Manual DB check during development: `app_settings.value` for `secret:api-key:*` contains the raw key text.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```rust
+let entry = keyring::Entry::new("PageWeave", id)?;
+entry.set_password(value)?;
+```
+
+#### Correct
+
+```rust
+secrets::set_secret(&conn, &api_key_id, &payload.api_key)?;
+```
+
+---
+
 ## Scenario: Bundled BabelDOC Sidecar User-Agent Patch
 
 ### 1. Scope / Trigger
