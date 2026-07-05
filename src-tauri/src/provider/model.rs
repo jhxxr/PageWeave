@@ -82,6 +82,9 @@ pub struct ProviderPayload {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ConnectivityRequest {
     pub api_key_id: String,
+    /// Plaintext key for unsaved provider forms. Connectivity probes must never persist it.
+    #[serde(default)]
+    pub api_key: Option<String>,
     pub base_url: String,
     /// model is optional for fetch_models.
     pub model: Option<String>,

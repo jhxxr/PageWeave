@@ -50,6 +50,8 @@ export interface ProviderPreset {
 
 export interface ConnectivityRequest {
   api_key_id: string;
+  /** Plaintext key for unsaved provider forms; never persisted by test/fetch calls. */
+  api_key?: string;
   base_url: string;
   model?: string;
 }

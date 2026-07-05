@@ -17,27 +17,28 @@ onefile 每次启动都把 ~200MB 解压到临时目录，慢且会破坏 BabelD
 1. **PyInstaller spec 的 `SPECPATH` 是 spec 所在目录（`sidecar/`），不是项目根**。spec 里 `ROOT = Path(SPECPATH).resolve().parent` 才能正确定位 `sidecar/babeldoc_entry.py`。
 2. **`bitstring` 的子模块 `bitstring.bitstore_bitarray` 被动态导入，PyInstaller 默认漏检**。spec 用 `collect_all("bitstring")` 兜底。
 3. **hyperscan 的 `_hs_ext.pyd` 依赖一个 vendor-hashed 的 `msvcp140-<hash>.dll`，它住在 `hyperscan.libs/` 而非 pyd 旁边，PyInstaller 不收集**。`build_sidecar.sh` 在冻结后手动把该 DLL 拷进 `_internal/`，否则 sidecar 启动报 `DLL load failed while importing _hs_ext`。hyperscan 在 BabelDOC 中仅 `glossary.py` 用到（术语表多模式正则匹配），但 import 链上必须能加载。
-4. **dev 模式下 `babeldoc-sidecar.exe` 必须能找到同级的 `_internal/` 目录**（含 `python311.dll` 等）。dev 时需手动把 `sidecar/dist/babeldoc-sidecar/_internal/` 拷到 `src-tauri/target/debug/_internal/`；`tauri build` 时由 `externalBin` 配置统一处理。
+4. **`babeldoc-sidecar.exe` 必须能找到同级的 `_internal/` 目录**（含 `python311.dll` 等）。dev 可直接使用 `sidecar/dist/babeldoc-sidecar/`；如果手动复制 exe，也必须一并复制 `_internal/`。`tauri build` 时由 `externalBin` + `resources` 配置共同处理。
 
 ## 离线资源（模型 + 字体）
 
 BabelDOC 首次翻译需下载 DocLayout-YOLO ONNX 模型（~72MB）与字体（~254MB）。`build_sidecar.sh` 在冻结后运行 `--generate-offline-assets` 打包、再 `--restore-offline-assets` 还原进 `~/.cache/babeldoc`。
 
-离线资源包不进入 Git 仓库。CI 发布时会把 `sidecar/assets/offline_assets_*.zip` 作为可选 GitHub Release 附件上传。应用设置页提供两种安装方式：
+离线资源包不进入 Git 仓库。CI 发布时会把 `sidecar/assets/offline_assets_*.zip` 作为 GitHub Release 附件上传。应用设置页提供两种安装方式：
 
 1. 在线安装：从 `jhxxr/PageWeave` 最新 Release 中查找并下载 `offline_assets_*.zip`。
 2. 本地安装：用户提前下载该 zip 后，在设置页选择本地文件安装。
 
-未安装离线资源时，应用仍可运行；BabelDOC 首次翻译可能按自身逻辑联网下载资源。
+未安装离线资源时，翻译入口会阻止启动，并提示用户先到设置页安装离线资源包。
 
 ## Rust 侧调用
 
 `src-tauri/src/translate/runner.rs` 的 `resolve_sidecar()` 按以下顺序查找 sidecar exe：
-1. 当前 exe 同级目录（`babeldoc-sidecar.exe` / `babeldoc-sidecar`）—— dev 的 `target/debug/` 与正式安装的 app 目录都满足
-2. 同级 `sidecar/` 子目录
-3. `CARGO_MANIFEST_DIR/../sidecar/dist/babeldoc-sidecar/babeldoc-sidecar.exe`（dev 便利）
+1. Tauri resource 目录中的 `babeldoc-sidecar/`（正式安装包的完整 one-folder 目录）
+2. 当前 exe 同级目录（`babeldoc-sidecar.exe` / `babeldoc-sidecar`）
+3. 同级 `sidecar/` 子目录
+4. `CARGO_MANIFEST_DIR/../sidecar/dist/babeldoc-sidecar/babeldoc-sidecar.exe`（dev 便利）
 
-`probe_babeldoc()` 同样优先用 sidecar，回退到 PATH 上的 `babeldoc`，再回退 `python -m babeldoc`。
+`probe_babeldoc()` 只检测内置 sidecar，不回退到 PATH 上的 `babeldoc` 或 `python -m babeldoc`。
 
 ## 构建
 

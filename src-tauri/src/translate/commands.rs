@@ -3,6 +3,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::error::{AppError, AppResult};
+use crate::translate::assets;
 use crate::translate::model::{BabeldocInfo, TranslateEvent, TranslateRequest};
 use crate::translate::runner;
 use crate::translate::state::TaskRegistry;
@@ -10,10 +11,7 @@ use crate::translate::state::TaskRegistry;
 /// Start a translation. Returns the task_id immediately; progress flows over the
 /// `translate://progress` event. This command never blocks on the translation itself.
 #[tauri::command]
-pub async fn start_translate(
-    app: AppHandle,
-    req: TranslateRequest,
-) -> AppResult<String> {
+pub async fn start_translate(app: AppHandle, req: TranslateRequest) -> AppResult<String> {
     if req.pdf_paths.is_empty() {
         return Err(AppError::InvalidInput("至少需要一个 PDF 文件".into()));
     }
@@ -39,6 +37,11 @@ pub async fn start_translate(
     }
     if req.qps == 0 {
         return Err(AppError::InvalidInput("QPS 必须大于 0".into()));
+    }
+    if !assets::offline_assets_info().installed {
+        return Err(AppError::InvalidInput(
+            "未检测到 BabelDOC 离线资源包，请先在设置页安装。".into(),
+        ));
     }
     let task_id = req
         .task_id
@@ -73,8 +76,8 @@ pub async fn cancel_translate(app: AppHandle, task_id: String) -> AppResult<bool
 }
 
 #[tauri::command]
-pub async fn get_babeldoc_info() -> AppResult<BabeldocInfo> {
-    Ok(runner::probe_babeldoc().await)
+pub async fn get_babeldoc_info(app: AppHandle) -> AppResult<BabeldocInfo> {
+    Ok(runner::probe_babeldoc(Some(&app)).await)
 }
 
 /// Helper used by `lib.rs` setup to create the registry state.

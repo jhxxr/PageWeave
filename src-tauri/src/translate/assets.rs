@@ -45,6 +45,7 @@ pub async fn get_offline_assets_info() -> AppResult<OfflineAssetsInfo> {
 
 #[tauri::command]
 pub async fn install_offline_assets_from_file(
+    app: AppHandle,
     path: String,
 ) -> AppResult<OfflineAssetsInstallResult> {
     let existing = offline_assets_info();
@@ -80,7 +81,7 @@ pub async fn install_offline_assets_from_file(
     let restore_dir = package
         .parent()
         .ok_or_else(|| AppError::InvalidInput("无法读取资源包所在目录".into()))?;
-    restore_offline_assets(restore_dir).await?;
+    restore_offline_assets(&app, restore_dir).await?;
     let info = offline_assets_info();
     Ok(OfflineAssetsInstallResult {
         ok: info.installed,
@@ -142,7 +143,7 @@ pub async fn install_offline_assets_from_release(
     let package_path = download_dir.join(&asset.name);
     tokio::fs::write(&package_path, &bytes).await?;
 
-    restore_offline_assets(&download_dir).await?;
+    restore_offline_assets(&app, &download_dir).await?;
     let info = offline_assets_info();
     Ok(OfflineAssetsInstallResult {
         ok: info.installed,
@@ -156,7 +157,7 @@ pub async fn install_offline_assets_from_release(
     })
 }
 
-fn offline_assets_info() -> OfflineAssetsInfo {
+pub(crate) fn offline_assets_info() -> OfflineAssetsInfo {
     let cache_dir = babeldoc_cache_dir();
     let size_bytes = dir_size(&cache_dir).unwrap_or(0);
     let installed = size_bytes >= MIN_READY_CACHE_BYTES;
@@ -172,8 +173,8 @@ fn offline_assets_info() -> OfflineAssetsInfo {
     }
 }
 
-async fn restore_offline_assets(asset_dir: &Path) -> AppResult<()> {
-    let mut cmd = restore_command(asset_dir);
+async fn restore_offline_assets(app: &AppHandle, asset_dir: &Path) -> AppResult<()> {
+    let mut cmd = restore_command(app, asset_dir)?;
     cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -198,18 +199,15 @@ async fn restore_offline_assets(asset_dir: &Path) -> AppResult<()> {
     )))
 }
 
-fn restore_command(asset_dir: &Path) -> Command {
-    let mut cmd = if let Some(sidecar) = super::runner::resolve_sidecar() {
-        Command::new(sidecar)
-    } else if which::which("babeldoc").is_ok() {
-        Command::new("babeldoc")
-    } else {
-        let mut c = Command::new("python");
-        c.arg("-m").arg("babeldoc");
-        c
+fn restore_command(app: &AppHandle, asset_dir: &Path) -> AppResult<Command> {
+    let Some(sidecar) = super::runner::resolve_sidecar(Some(app)) else {
+        return Err(AppError::NotFound(
+            "未检测到内置 BabelDOC sidecar，请重新安装 PageWeave。".into(),
+        ));
     };
+    let mut cmd = Command::new(sidecar);
     cmd.arg("--restore-offline-assets").arg(asset_dir);
-    cmd
+    Ok(cmd)
 }
 
 fn is_offline_asset_name(name: &str) -> bool {

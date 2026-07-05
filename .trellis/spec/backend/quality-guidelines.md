@@ -113,13 +113,13 @@ runtime_hooks=[str(ROOT / "sidecar" / "sitecustomize.py")]
 
 ---
 
-## Scenario: Optional Offline BabelDOC Assets
+## Scenario: Required Offline BabelDOC Assets
 
 ### 1. Scope / Trigger
 
 - Trigger: BabelDOC needs large model/font assets for first-run PDF translation, but `offline_assets_*.zip` is larger than GitHub's normal 100MB Git blob limit.
-- Scope: Release packaging, Rust Tauri commands, frontend settings controls, and BabelDOC cache restoration.
-- Rule: Offline assets are optional runtime packages. They must never be committed to Git; publish them as GitHub Release attachments.
+- Scope: Release packaging, Rust Tauri commands, frontend settings controls, startup readiness state, and BabelDOC cache restoration.
+- Rule: Offline assets are required before translation starts. They must never be committed to Git; publish them as GitHub Release attachments.
 
 ### 2. Signatures
 
@@ -128,7 +128,8 @@ runtime_hooks=[str(ROOT / "sidecar" / "sitecustomize.py")]
 - Rust commands:
   - `get_offline_assets_info() -> OfflineAssetsInfo`
   - `install_offline_assets_from_release(app) -> OfflineAssetsInstallResult`
-  - `install_offline_assets_from_file(path: String) -> OfflineAssetsInstallResult`
+  - `install_offline_assets_from_file(app, path: String) -> OfflineAssetsInstallResult`
+  - `start_translate(app, req) -> AppResult<String>`
 - Frontend API wrappers:
   - `translateApi.offlineAssetsInfo()`
   - `translateApi.installOfflineAssetsFromRelease()`
@@ -148,9 +149,12 @@ runtime_hooks=[str(ROOT / "sidecar" / "sitecustomize.py")]
   - `message: string`
 - Online install must discover the newest Release asset whose name starts with `offline_assets_` and ends with `.zip`.
 - Local install must accept only a selected `offline_assets_*.zip` file, then pass its parent directory to BabelDOC `--restore-offline-assets`.
-- Restoration must use the bundled sidecar first, then `babeldoc` on PATH, then `python -m babeldoc`.
+- App startup and Settings refresh must use `get_offline_assets_info()` as the UI readiness source. Do not use Python package or PATH probes for the home-page readiness banner.
+- `start_translate` must reject requests when `OfflineAssetsInfo.installed == false`.
+- Restoration must use the bundled sidecar only. Do not fall back to `babeldoc` on PATH or `python -m babeldoc`.
 - Install commands must short-circuit successfully when the BabelDOC cache is already ready; a user should not see a restore failure while `get_offline_assets_info()` reports `installed=true`.
 - A PyInstaller one-folder sidecar is usable only when the sidecar executable and its sibling `_internal/` runtime directory are both present. `resolve_sidecar()` must not return a bare copied/renamed exe that lacks `_internal/python*.dll`.
+- Packaged builds must include both `bundle.externalBin` for the sidecar exe and `bundle.resources` for the full `sidecar/dist/babeldoc-sidecar/` directory.
 - Runtime cache path detection must match BabelDOC's default cache shape: `$BABELDOC_CACHE_DIR`, `$XDG_CACHE_HOME/babeldoc`, or `<home>/.cache/babeldoc`.
 
 ### 4. Validation & Error Matrix
@@ -158,15 +162,17 @@ runtime_hooks=[str(ROOT / "sidecar" / "sitecustomize.py")]
 - Latest GitHub Release has no matching asset -> return `not_found`.
 - Selected local file does not exist -> return `not_found`.
 - Selected local file is not named `offline_assets_*.zip` -> return `invalid_input`.
+- Translation starts while cache is not ready -> return `invalid_input` with an install-offline-assets message.
 - Cache is already ready before install starts -> return `ok=true` without downloading or restoring.
-- Sidecar exe exists without `_internal/python*.dll` -> ignore it and try `babeldoc` on PATH / `python -m babeldoc`.
-- No sidecar/PATH BabelDOC/Python module can restore assets -> return `translate` or `io` error with captured process output.
+- Sidecar exe exists without `_internal/python*.dll` -> ignore it and keep searching bundled/resource sidecar locations only.
+- No usable bundled sidecar can restore assets -> return `not_found` with a reinstall-PageWeave message.
 - Cache size remains below the ready threshold after restore -> return `ok=false` with the cache path for user diagnosis.
 
 ### 5. Good/Base/Bad Cases
 
 - Good: User clicks Settings -> Install online; PageWeave downloads the Release asset, restores it, and Settings shows installed cache size.
 - Base: User downloads the Release zip manually and chooses it from Settings; PageWeave restores from the local file without needing GitHub access.
+- Bad: Home page reports "Python/BabelDOC not installed" while Settings reports offline assets are installed.
 - Bad: `sidecar/assets/offline_assets_*.zip` is committed to Git. GitHub rejects push with GH001 or bloats repository history.
 
 ### 6. Tests Required
@@ -174,7 +180,9 @@ runtime_hooks=[str(ROOT / "sidecar" / "sitecustomize.py")]
 - `cargo check` validates Rust command signatures and error propagation.
 - `pnpm exec tsc --noEmit` validates TypeScript mirrors and settings-page API calls.
 - `pnpm build` validates the settings UI bundle.
-- With a cache larger than the ready threshold, clicking either install path returns success and does not invoke a sidecar.
+- `pnpm tauri build --no-bundle` validates Tauri config, including `bundle.resources`.
+- With a cache larger than the ready threshold, app startup and Settings both mark translation readiness as installed.
+- With a cache smaller than the ready threshold, `start_translate` rejects before spawning the sidecar.
 - With a bare renamed sidecar exe but no `_internal/`, sidecar resolution skips it instead of surfacing `Failed to load Python DLL`.
 - Manual release smoke test: after CI publishes a Release, confirm it contains one `offline_assets_*.zip` attachment.
 - Manual app smoke test: install online from Settings, then refresh status and verify the cache path/size changes.
@@ -193,16 +201,93 @@ if path.exists() {
 }
 ```
 
+```rust
+Command::new("python").arg("-m").arg("babeldoc")
+```
+
 #### Correct
 
 ```yaml
-- name: Upload optional offline assets
+- name: Upload required offline assets
   run: gh release upload "pageweave-v$env:PAGEWEAVE_VERSION" $asset.FullName --clobber
 ```
 
 ```rust
 if path.is_file() && path.parent().unwrap().join("_internal").is_dir() {
     return Some(path);
+}
+```
+
+```json
+{
+  "externalBin": ["../sidecar/dist/babeldoc-sidecar/babeldoc-sidecar"],
+  "resources": {
+    "../sidecar/dist/babeldoc-sidecar/": "babeldoc-sidecar/"
+  }
+}
+```
+
+---
+
+## Scenario: Translate Progress Event Contract
+
+### 1. Scope / Trigger
+
+- Trigger: Rust emits `translate://progress` events and React switches on `payload.type`.
+- Scope: `TranslateEvent` serialization in `src-tauri/src/translate/model.rs`, event emission in `runner.rs` / `commands.rs`, and frontend handling in `src/App.tsx`.
+- Risk: Serde's default enum variant names are `Status`, `Progress`, and `Log`; the frontend contract expects lowercase `status`, `progress`, and `log`.
+
+### 2. Signatures
+
+- Rust event enum: `TranslateEvent`
+- Serde shape: `#[serde(tag = "type", rename_all = "lowercase")]`
+- Tauri event channel: `translate://progress`
+- Frontend TypeScript union: `TranslateEvent` with `type: "log" | "progress" | "status"`
+
+### 3. Contracts
+
+- Every emitted translate event must include a lowercase `type` discriminator.
+- `status` events update lifecycle state and optional `message` / `output_files`.
+- `progress` events update `overall` and `stage`.
+- `log` events append masked stdout/stderr lines.
+- Frontend event handlers must consume the shared TypeScript union, not compare against Rust enum variant names.
+
+### 4. Validation & Error Matrix
+
+- Serialized event has `type: "Status"` -> frontend ignores it; UI appears stuck with no error.
+- Serialized event has `type: "Progress"` -> progress bar never advances.
+- Serialized event has `type: "Log"` -> live log stays empty.
+- Event has lowercase type but wrong fields -> TypeScript mirror or runtime handling must be updated with the enum change.
+
+### 5. Good/Base/Bad Cases
+
+- Good: Start translation emits `status`, then stderr `log`, then `progress`, and the UI updates.
+- Base: BabelDOC exits with an error; the final `status` event is lowercase and the UI shows the error message.
+- Bad: Adding a new Rust event variant without updating the frontend union and serialization test.
+
+### 6. Tests Required
+
+- Rust unit test serializes `TranslateEvent::Status`, `Progress`, and `Log` and asserts lowercase `type` values.
+- `pnpm build` validates the frontend union and switch handling.
+- Manual smoke: start a translation and verify running state, log output, progress, and final status are visible.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```rust
+#[serde(tag = "type")]
+pub enum TranslateEvent {
+    Status { /* ... */ },
+}
+```
+
+#### Correct
+
+```rust
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum TranslateEvent {
+    Status { /* ... */ },
 }
 ```
 

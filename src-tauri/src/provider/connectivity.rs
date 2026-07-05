@@ -5,14 +5,13 @@ use serde_json::json;
 use crate::error::{AppError, AppResult};
 use crate::secrets;
 
-use super::model::{ConnectivityRequest, ConnectionTestResult, ModelFetchResult};
+use super::model::{ConnectionTestResult, ConnectivityRequest, ModelFetchResult};
 
 /// POST a minimal `chat/completions` request to verify base_url + key + model together.
 /// Gateways differ on whether base_url includes `/v1`, so we try `/chat/completions` then
 /// `/v1/chat/completions` when base_url doesn't already end in `/v1`.
 pub async fn test_connection(req: &ConnectivityRequest) -> AppResult<ConnectionTestResult> {
-    let key = secrets::get_secret(&req.api_key_id)?
-        .ok_or_else(|| AppError::InvalidInput("API key is missing".into()))?;
+    let key = resolve_probe_key(req)?;
     let model = req
         .model
         .clone()
@@ -68,8 +67,7 @@ pub async fn test_connection(req: &ConnectivityRequest) -> AppResult<ConnectionT
 
 /// Pull `data[].id` from a GET /models response. Tries base_url + /models then + /v1/models.
 pub async fn fetch_models(req: &ConnectivityRequest) -> AppResult<ModelFetchResult> {
-    let key = secrets::get_secret(&req.api_key_id)?
-        .ok_or_else(|| AppError::InvalidInput("API key is missing".into()))?;
+    let key = resolve_probe_key(req)?;
     let base = req.base_url.trim_end_matches('/').to_string();
 
     let client = reqwest::Client::builder()
@@ -120,6 +118,22 @@ pub async fn fetch_models(req: &ConnectivityRequest) -> AppResult<ModelFetchResu
             last_msg
         },
     })
+}
+
+fn resolve_probe_key(req: &ConnectivityRequest) -> AppResult<String> {
+    if let Some(key) = req
+        .api_key
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
+        return Ok(key.to_string());
+    }
+    if req.api_key_id.trim().is_empty() {
+        return Err(AppError::InvalidInput("API key is missing".into()));
+    }
+    secrets::get_secret(&req.api_key_id)?
+        .ok_or_else(|| AppError::InvalidInput("API key is missing".into()))
 }
 
 fn extract_error_message(txt: &str) -> Option<String> {

@@ -38,17 +38,16 @@ export default function App() {
   }, [loadSettings, loadProviders, initUpdates]);
 
   useEffect(() => {
-    // Probe babeldoc once on startup.
+    // Translation requires the offline BabelDOC resource package.
     translateApi
-      .babeldocInfo()
+      .offlineAssetsInfo()
       .then((info) => {
-        useTranslateStore.getState().setBabeldoc(info.installed, info.hint);
+        useTranslateStore.getState().setBabeldoc(info.installed, info.message);
       })
       .catch(() => {
-        useTranslateStore.getState().setBabeldoc(
-          false,
-          "无法检测 babeldoc，请确认 Python 与 BabelDOC 已安装",
-        );
+        useTranslateStore
+          .getState()
+          .setBabeldoc(false, "未检测到 BabelDOC 离线资源包，请在设置页安装。");
       });
 
     let unlisten: UnlistenFn | undefined;

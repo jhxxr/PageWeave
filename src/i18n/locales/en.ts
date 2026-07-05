@@ -39,7 +39,7 @@ const en = {
     noPdf: "Choose one PDF before starting",
     onePdfOnly: "The MVP translates one PDF at a time. Only the first PDF was kept.",
     onePdfHint: "MVP scope: one PDF per run",
-    noBabeldoc: "Bundled BabelDOC sidecar was not detected. In development, install Python 3.10–3.13 and run: pip install BabelDOC.",
+    noBabeldoc: "BabelDOC offline assets were not detected. Install them in Settings first.",
     installHint: "Install guide",
     statusRunning: "Running",
     statusSuccess: "Done",
@@ -122,7 +122,7 @@ const en = {
     license: "License",
     licenseNote: "AGPL-3.0 — open source; integrates BabelDOC (AGPL-3.0)",
     deps: "Dependencies",
-    depsBody: "Translation is provided by the bundled BabelDOC sidecar when packaged. Development can fall back to a local Python + BabelDOC install.",
+    depsBody: "PageWeave runs translation through the bundled BabelDOC sidecar and requires the BabelDOC offline assets to be installed first.",
   },
   params: {
     title: "Translation Params",

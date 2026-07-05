@@ -28,8 +28,9 @@ import {
 import { useTranslation } from "react-i18next";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { openPath, openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { stat } from "@tauri-apps/plugin-fs";
+import { useNavigate } from "react-router-dom";
 import { useTranslateStore } from "../../stores/translateStore";
 import { useProviderStore } from "../../stores/providerStore";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -42,6 +43,7 @@ const { Text, Paragraph } = Typography;
 
 export default function TranslatePage() {
   const { t } = useTranslation();
+  const nav = useNavigate();
   const st = useTranslateStore();
   const providers = useProviderStore((s) => s.providers);
   const defaultId = useProviderStore((s) => s.defaultId);
@@ -146,6 +148,7 @@ export default function TranslatePage() {
     !!st.providerId &&
     !!(st.model || selectedProvider?.default_model) &&
     !!st.outputDir.trim() &&
+    st.babeldocInstalled !== false &&
     st.status !== "running";
 
   async function start() {
@@ -172,7 +175,7 @@ export default function TranslatePage() {
       return;
     }
     if (st.babeldocInstalled === false) {
-      message.error(t("translate.noBabeldoc"));
+      message.error(st.babeldocHint || t("settings.offlineAssetsMissing"));
       return;
     }
     setBusy(true);
@@ -224,13 +227,13 @@ export default function TranslatePage() {
         <Alert
           type="warning"
           showIcon
-          message={t("translate.noBabeldoc")}
+          message={st.babeldocHint || t("settings.offlineAssetsMissing")}
           action={
             <Button
               size="small"
-              onClick={() => openUrl("https://github.com/funstory-ai/BabelDOC")}
+              onClick={() => nav("/settings")}
             >
-              {t("translate.installHint")}
+              {t("app.nav.settings")}
             </Button>
           }
         />

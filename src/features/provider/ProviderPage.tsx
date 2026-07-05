@@ -275,6 +275,7 @@ function ProviderFormModal({ open, editing, presets, onClose, onSaved }: FormPro
       // If editing and key unchanged, use stored id; the backend reads keyring.
       const res = await providerApi.testConnection({
         api_key_id: id,
+        api_key: v.api_key,
         base_url: v.base_url,
         model: v.default_model,
       });
@@ -297,6 +298,7 @@ function ProviderFormModal({ open, editing, presets, onClose, onSaved }: FormPro
     try {
       const res = await providerApi.fetchModels({
         api_key_id: editing?.api_key_id ?? "",
+        api_key: v.api_key,
         base_url: v.base_url,
       });
       if (res.ok && res.models.length) {

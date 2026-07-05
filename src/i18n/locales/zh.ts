@@ -39,7 +39,7 @@ const zh = {
     noPdf: "开始前请选择一个 PDF",
     onePdfOnly: "MVP 阶段一次只翻译一个 PDF，已仅保留第一个文件。",
     onePdfHint: "MVP 范围：每次翻译一个 PDF",
-    noBabeldoc: "未检测到内置 BabelDOC sidecar。开发环境可安装 Python 3.10–3.13 并运行：pip install BabelDOC。",
+    noBabeldoc: "未检测到 BabelDOC 离线资源包，请先在设置页安装。",
     installHint: "安装指南",
     statusRunning: "翻译中",
     statusSuccess: "完成",
@@ -122,7 +122,7 @@ const zh = {
     license: "许可证",
     licenseNote: "AGPL-3.0 — 本项目开源；集成 BabelDOC (AGPL-3.0)",
     deps: "依赖说明",
-    depsBody: "打包版本通过内置 BabelDOC sidecar 提供翻译能力；开发环境可回退到本机 Python + BabelDOC 安装。",
+    depsBody: "PageWeave 通过内置 BabelDOC sidecar 执行翻译，并要求先安装 BabelDOC 离线资源包。",
   },
   params: {
     title: "翻译参数",

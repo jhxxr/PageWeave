@@ -23,6 +23,7 @@ import { useTranslation } from "react-i18next";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useProviderStore } from "../../stores/providerStore";
+import { useTranslateStore } from "../../stores/translateStore";
 import { useUpdateStore, type UpdateStatus } from "../../stores/updateStore";
 import { LANGUAGES } from "../../shared/constants";
 import { translateApi } from "../../services/api";
@@ -67,7 +68,9 @@ export default function SettingsPage() {
 
   async function refreshOfflineAssetsInfo() {
     try {
-      setOfflineInfo(await translateApi.offlineAssetsInfo());
+      const info = await translateApi.offlineAssetsInfo();
+      setOfflineInfo(info);
+      useTranslateStore.getState().setBabeldoc(info.installed, info.message);
     } catch (e) {
       messageApi.error((e as Error).message);
     }

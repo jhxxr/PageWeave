@@ -43,7 +43,7 @@ pub async fn run_translate(app: AppHandle, task_id: String, req: TranslateReques
     };
 
     // 2. Probe babeldoc.
-    match probe_babeldoc().await {
+    match probe_babeldoc(Some(&app)).await {
         info if !info.installed => {
             emit(TranslateEvent::Status {
                 task_id: task_id.clone(),
@@ -58,7 +58,18 @@ pub async fn run_translate(app: AppHandle, task_id: String, req: TranslateReques
 
     // 3. Build args + spawn.
     let argv = args::build_args(&req, &api_key);
-    let mut cmd = build_command(&argv);
+    let mut cmd = match build_command(&app, &argv) {
+        Ok(cmd) => cmd,
+        Err(e) => {
+            emit(TranslateEvent::Status {
+                task_id: task_id.clone(),
+                status: "error".into(),
+                output_files: None,
+                message: Some(e.to_string()),
+            });
+            return;
+        }
+    };
 
     cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -161,7 +172,10 @@ pub async fn run_translate(app: AppHandle, task_id: String, req: TranslateReques
     let exit_ok = matches!(&status, Ok(s) if s.success());
 
     let was_cancelled = if let Some(reg) = app.try_state::<Arc<TaskRegistry>>() {
-        matches!(reg.status(&task_id_for_wait).await.as_deref(), Some("cancelled"))
+        matches!(
+            reg.status(&task_id_for_wait).await.as_deref(),
+            Some("cancelled")
+        )
     } else {
         false
     };
@@ -227,55 +241,53 @@ pub async fn run_translate(app: AppHandle, task_id: String, req: TranslateReques
     }
 }
 
-fn build_command(argv: &[String]) -> tokio::process::Command {
-    // Resolution order for the babeldoc binary:
-    //   1. The bundled sidecar shipped next to this app's exe (preferred — no Python needed).
-    //   2. A `babeldoc` console script on PATH (user-installed Python+BabelDOC).
-    //   3. `python -m babeldoc` as a last resort.
-    if let Some(sidecar) = resolve_sidecar() {
-        let mut c = tokio::process::Command::new(sidecar);
-        c.args(argv);
-        return c;
-    }
-    if which::which("babeldoc").is_ok() {
-        let mut c = tokio::process::Command::new("babeldoc");
-        c.args(argv);
-        return c;
-    }
-    let mut c = tokio::process::Command::new("python");
-    c.arg("-m").arg("babeldoc").args(argv);
-    c
+fn build_command(
+    app: &AppHandle,
+    argv: &[String],
+) -> crate::error::AppResult<tokio::process::Command> {
+    let Some(sidecar) = resolve_sidecar(Some(app)) else {
+        return Err(crate::error::AppError::NotFound(
+            "未检测到内置 BabelDOC sidecar，请重新安装 PageWeave。".into(),
+        ));
+    };
+    let mut c = tokio::process::Command::new(sidecar);
+    c.args(argv);
+    Ok(c)
 }
 
 /// Look for a bundled `babeldoc-sidecar(.exe)` next to the running app executable.
 /// PyInstaller builds this as a one-folder sidecar, so the exe is only usable
 /// when its sibling `_internal/` runtime directory is present too.
-pub(crate) fn resolve_sidecar() -> Option<std::path::PathBuf> {
+pub(crate) fn resolve_sidecar(app: Option<&AppHandle>) -> Option<std::path::PathBuf> {
     let candidates = [
         "babeldoc-sidecar.exe",
         "babeldoc-sidecar-x86_64-pc-windows-msvc.exe",
         "babeldoc-sidecar",
     ];
-    // 1. Next to the current executable.
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            for name in candidates {
-                let p = dir.join(name);
-                if is_usable_sidecar(&p) {
-                    return Some(p);
-                }
-            }
-            // 2. In a sibling `sidecar/` subdirectory (dev layout).
-            let sub = dir.join("sidecar");
-            for name in candidates {
-                let p = sub.join(name);
-                if is_usable_sidecar(&p) {
-                    return Some(p);
-                }
+    // 1. Tauri resource directory. Packaged builds place the one-folder sidecar here.
+    if let Some(app) = app {
+        if let Ok(resource_dir) = app.path().resource_dir() {
+            if let Some(path) =
+                find_sidecar_in_dir(&resource_dir.join("babeldoc-sidecar"), &candidates)
+            {
+                return Some(path);
             }
         }
     }
-    // 3. Dev convenience: project-side built sidecar (best-effort, ignored if absent).
+    // 2. Next to the current executable.
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            if let Some(path) = find_sidecar_in_dir(dir, &candidates) {
+                return Some(path);
+            }
+            // 3. In a sibling `sidecar/` subdirectory (dev layout).
+            let sub = dir.join("sidecar");
+            if let Some(path) = find_sidecar_in_dir(&sub, &candidates) {
+                return Some(path);
+            }
+        }
+    }
+    // 4. Dev convenience: project-side built sidecar (best-effort, ignored if absent).
     if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
         let p = std::path::Path::new(&manifest_dir)
             .join("..")
@@ -288,6 +300,13 @@ pub(crate) fn resolve_sidecar() -> Option<std::path::PathBuf> {
         }
     }
     None
+}
+
+fn find_sidecar_in_dir(dir: &std::path::Path, candidates: &[&str]) -> Option<std::path::PathBuf> {
+    candidates
+        .iter()
+        .map(|name| dir.join(name))
+        .find(|path| is_usable_sidecar(path))
 }
 
 fn is_usable_sidecar(path: &std::path::Path) -> bool {
@@ -421,11 +440,9 @@ fn is_babeldoc_output(name: &str, stem: &str, kind: &str) -> bool {
                 || lower.ends_with(&format!(".{kind}.no_watermark.pdf")))
 }
 
-/// Probe whether babeldoc is available — either as a bundled sidecar next to
-/// this app's exe, or as a `babeldoc` console script on PATH.
-pub async fn probe_babeldoc() -> BabeldocInfo {
-    // 1. Bundled sidecar (preferred; no Python needed).
-    if let Some(sidecar) = resolve_sidecar() {
+/// Probe whether the bundled BabelDOC sidecar is available.
+pub async fn probe_babeldoc(app: Option<&AppHandle>) -> BabeldocInfo {
+    if let Some(sidecar) = resolve_sidecar(app) {
         let version = tokio::process::Command::new(&sidecar)
             .arg("--version")
             .output()
@@ -440,31 +457,11 @@ pub async fn probe_babeldoc() -> BabeldocInfo {
             hint: String::new(),
         };
     }
-    // 2. User-installed `babeldoc` on PATH.
-    let bin = match which::which("babeldoc") {
-        Ok(p) => p,
-        Err(_) => {
-            return BabeldocInfo {
-                installed: false,
-                version: None,
-                path: None,
-                hint: "未检测到内置 BabelDOC sidecar。开发环境可安装 Python 3.10–3.13 并运行: pip install BabelDOC".into(),
-            };
-        }
-    };
-    let out = tokio::process::Command::new("babeldoc")
-        .arg("--version")
-        .output()
-        .await;
-    let version = match out {
-        Ok(o) => String::from_utf8_lossy(&o.stdout).trim().to_string(),
-        Err(_) => String::new(),
-    };
     BabeldocInfo {
-        installed: true,
-        version: if version.is_empty() { None } else { Some(version) },
-        path: Some(bin.to_string_lossy().to_string()),
-        hint: String::new(),
+        installed: false,
+        version: None,
+        path: None,
+        hint: "未检测到内置 BabelDOC sidecar，请重新安装 PageWeave。".into(),
     }
 }
 
@@ -500,7 +497,10 @@ mod tests {
         std::fs::write(dir.join("pageweave-smoke-valid.zh.mono.pdf"), b"mono").unwrap();
         std::fs::write(dir.join("pageweave-smoke-valid.zh.dual.pdf"), b"dual").unwrap();
 
-        let outputs = scan_outputs(&req(dir.to_string_lossy().to_string(), OutputMode::Both), "t");
+        let outputs = scan_outputs(
+            &req(dir.to_string_lossy().to_string(), OutputMode::Both),
+            "t",
+        );
 
         assert_eq!(outputs.len(), 2);
         assert!(outputs.iter().any(|p| p.ends_with(".zh.mono.pdf")));
@@ -519,7 +519,10 @@ mod tests {
         std::fs::write(dir.join("pageweave-smoke-valid-mono.pdf"), b"mono").unwrap();
         std::fs::write(dir.join("pageweave-smoke-valid-dual.pdf"), b"dual").unwrap();
 
-        let outputs = scan_outputs(&req(dir.to_string_lossy().to_string(), OutputMode::Mono), "t");
+        let outputs = scan_outputs(
+            &req(dir.to_string_lossy().to_string(), OutputMode::Mono),
+            "t",
+        );
 
         assert_eq!(outputs.len(), 1);
         assert!(outputs[0].ends_with("-mono.pdf"));

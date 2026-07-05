@@ -47,7 +47,7 @@ pub struct BabeldocInfo {
 
 /// Event payload pushed to the frontend via `translate://progress`.
 #[derive(Debug, Clone, Serialize)]
-#[serde(tag = "type")]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum TranslateEvent {
     /// One captured log line from babeldoc's stdout/stderr.
     Log {
@@ -74,4 +74,39 @@ pub enum TranslateEvent {
         #[serde(skip_serializing_if = "Option::is_none")]
         message: Option<String>,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn translate_event_types_match_frontend_contract() {
+        let status = serde_json::to_value(TranslateEvent::Status {
+            task_id: "task_1".into(),
+            status: "running".into(),
+            output_files: None,
+            message: None,
+        })
+        .unwrap();
+        assert_eq!(status["type"], "status");
+
+        let progress = serde_json::to_value(TranslateEvent::Progress {
+            task_id: "task_1".into(),
+            overall: 42,
+            stage: "Translating".into(),
+            part_index: None,
+            total_parts: None,
+        })
+        .unwrap();
+        assert_eq!(progress["type"], "progress");
+
+        let log = serde_json::to_value(TranslateEvent::Log {
+            task_id: "task_1".into(),
+            line: "hello".into(),
+            stream: "stderr".into(),
+        })
+        .unwrap();
+        assert_eq!(log["type"], "log");
+    }
 }
