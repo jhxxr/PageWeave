@@ -6,7 +6,6 @@ import {
   Card,
   Empty,
   Input,
-  Progress,
   Radio,
   Select,
   Space,
@@ -37,6 +36,12 @@ import { translateApi } from "../../services/api";
 import { LANGUAGES, formatBytes } from "../../shared/constants";
 import type { FileItem } from "../../stores/translateStore";
 import type { TranslateRequest } from "../../types";
+import {
+  LogStream,
+  ProgressOverview,
+  cap,
+  statusColor,
+} from "./ProgressLogPanel";
 
 const { Text, Paragraph } = Typography;
 
@@ -192,14 +197,6 @@ export default function TranslatePage() {
   async function cancel() {
     if (st.taskId) await translateApi.cancel(st.taskId);
   }
-
-  const statusColor: Record<string, string> = {
-    idle: "default",
-    running: "processing",
-    success: "success",
-    error: "error",
-    cancelled: "warning",
-  };
 
   return (
     <Space direction="vertical" style={{ width: "100%" }} size={16}>
@@ -419,8 +416,14 @@ export default function TranslatePage() {
           )
         }
       >
-        <Progress percent={st.progress} status={st.status === "error" ? "exception" : undefined} />
-        {st.stage && <Text type="secondary">{st.stage}</Text>}
+        <ProgressOverview
+          percent={st.progress}
+          status={st.status}
+          stage={st.stage}
+          latestLog={st.logs[st.logs.length - 1]?.text}
+          stageLabel={t("translate.currentStage")}
+          latestLabel={t("tasks.latestLog")}
+        />
         {st.statusMessage && (
           <Paragraph type={st.status === "error" ? "danger" : undefined}>
             {st.statusMessage}
@@ -472,37 +475,14 @@ export default function TranslatePage() {
         }
         variant="borderless"
       >
-        <div
-          ref={logRef}
-          style={{
-            height: 240,
-            overflow: "auto",
-            background: "rgba(0,0,0,0.04)",
-            padding: 8,
-            borderRadius: 6,
-            fontFamily: "ui-monospace, monospace",
-            fontSize: 12,
-          }}
-        >
-          {st.logs.length === 0 ? (
-            <Text type="secondary">—</Text>
-          ) : (
-            st.logs.map((l) => (
-              <div key={l.id}>
-                <span style={{ color: l.stream === "stderr" ? "#c0392b" : undefined }}>
-                  {l.text}
-                </span>
-              </div>
-            ))
-          )}
-        </div>
+        <LogStream
+          logs={st.logs}
+          emptyText={t("translate.logEmpty")}
+          containerRef={logRef}
+        />
       </Card>
     </Space>
   );
-}
-
-function cap(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 async function createFileItem(path: string): Promise<FileItem> {

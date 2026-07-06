@@ -16,6 +16,8 @@ pub struct ProgressParser {
     /// `stage (cur/total)` — rich/tqdm description line.
     stage_re: Regex,
     pct_re: Regex,
+    parenthesized_ratio_re: Regex,
+    count_re: Regex,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -35,6 +37,8 @@ impl ProgressParser {
             ansi_re: Regex::new("\x1b\\[[0-9;]*[A-Za-z]").unwrap(),
             stage_re: Regex::new(r"(.+?)\s*\((\d+)[/:](\d+)\)").unwrap(),
             pct_re: Regex::new(r"(\d{1,3})%").unwrap(),
+            parenthesized_ratio_re: Regex::new(r"\(\d+[/:]\d+\)").unwrap(),
+            count_re: Regex::new(r"(\d+)[/:](\d+)").unwrap(),
         }
     }
 
@@ -62,18 +66,7 @@ impl ProgressParser {
             if clean.trim().is_empty() {
                 continue;
             }
-            let overall = self
-                .pct_re
-                .captures(&clean)
-                .and_then(|c| c[1].parse::<u32>().ok().filter(|&v| v <= 100));
-            // For stage: rich prints `desc (cur/total)` then the bar.
-            let stage = self
-                .stage_re
-                .captures(&clean)
-                .map(|c| c[1].trim().to_string());
-            if let Some(v) = overall {
-                self.last_overall = v;
-            }
+            let (overall, stage) = self.parse_clean_line(&clean);
             out.push(ParsedLine {
                 text: clean,
                 overall,
@@ -99,19 +92,44 @@ impl ProgressParser {
         if clean.trim().is_empty() {
             return vec![];
         }
-        let overall = self
-            .pct_re
-            .captures(&clean)
-            .and_then(|c| c[1].parse::<u32>().ok().filter(|&v| v <= 100));
-        let stage = self
-            .stage_re
-            .captures(&clean)
-            .map(|c| c[1].trim().to_string());
+        let (overall, stage) = self.parse_clean_line(&clean);
         vec![ParsedLine {
             text: clean,
             overall,
             stage,
         }]
+    }
+
+    fn parse_clean_line(&mut self, clean: &str) -> (Option<u32>, Option<String>) {
+        let overall = self
+            .pct_re
+            .captures(clean)
+            .and_then(|c| c[1].parse::<u32>().ok().filter(|&v| v <= 100))
+            .or_else(|| self.parse_count_progress(clean));
+        // For stage: rich prints `desc (cur/total)` then the bar.
+        let stage = self
+            .stage_re
+            .captures(clean)
+            .map(|c| c[1].trim().to_string());
+        if let Some(v) = overall {
+            self.last_overall = v;
+        }
+        (overall, stage)
+    }
+
+    fn parse_count_progress(&self, clean: &str) -> Option<u32> {
+        let without_stage_counts = self.parenthesized_ratio_re.replace_all(clean, "");
+        self.count_re
+            .captures_iter(&without_stage_counts)
+            .filter_map(|c| {
+                let cur = c[1].parse::<u32>().ok()?;
+                let total = c[2].parse::<u32>().ok()?;
+                if total == 0 {
+                    return None;
+                }
+                Some(((cur.min(total) * 100) / total).min(100))
+            })
+            .last()
     }
 }
 
@@ -149,6 +167,25 @@ mod tests {
         let mut p = ProgressParser::new();
         let lines = p.push_bytes(b"not a real 999% thing\n");
         assert!(lines[0].overall.is_none());
+    }
+
+    #[test]
+    fn parses_count_progress_line() {
+        let mut p = ProgressParser::new();
+        let lines = p.push_bytes(b"Parse Layout (1/1) ----- 15/20 0:00\n");
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].overall, Some(75));
+        assert_eq!(lines[0].stage.as_deref(), Some("Parse Layout"));
+        assert_eq!(p.current(), 75);
+    }
+
+    #[test]
+    fn ignores_stage_count_when_work_count_is_unknown() {
+        let mut p = ProgressParser::new();
+        let lines = p.push_bytes(b"Translate Paragraphs (1/1) ----- 245/-- 0:00\n");
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].overall, None);
+        assert_eq!(lines[0].stage.as_deref(), Some("Translate Paragraphs"));
     }
 
     #[test]

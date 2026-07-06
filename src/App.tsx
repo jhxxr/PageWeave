@@ -67,6 +67,7 @@ export default function App() {
             st.setStatus(ev.status as never);
             if (ev.output_files) st.setOutputFiles(ev.output_files);
             if (ev.message) st.setStatusMessage(ev.message);
+            if (ev.status === "success") st.setProgress(100);
             break;
         }
       });

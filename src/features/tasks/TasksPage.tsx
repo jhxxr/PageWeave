@@ -1,18 +1,16 @@
-import { Button, Card, Empty, Progress, Space, Tag, Tooltip, Typography } from "antd";
+import { Button, Card, Empty, Space, Tag, Tooltip, Typography } from "antd";
 import { FilePdfOutlined, FolderOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useTranslateStore } from "../../stores/translateStore";
+import {
+  LogStream,
+  ProgressOverview,
+  cap,
+  statusColor,
+} from "../translate/ProgressLogPanel";
 
 const { Paragraph, Text } = Typography;
-
-const statusColor: Record<string, string> = {
-  idle: "default",
-  running: "processing",
-  success: "success",
-  error: "error",
-  cancelled: "warning",
-};
 
 export default function TasksPage() {
   const { t } = useTranslation();
@@ -37,12 +35,14 @@ export default function TasksPage() {
 
           <div>
             <Text type="secondary">{t("translate.progress")}</Text>
-            <Progress
+            <ProgressOverview
               percent={st.progress}
-              status={st.status === "error" ? "exception" : undefined}
-              style={{ marginTop: 4 }}
+              status={st.status}
+              stage={st.stage}
+              latestLog={st.logs[st.logs.length - 1]?.text}
+              stageLabel={t("translate.currentStage")}
+              latestLabel={t("tasks.latestLog")}
             />
-            {st.stage && <Text type="secondary">{st.stage}</Text>}
           </div>
 
           {st.statusMessage && (
@@ -74,33 +74,11 @@ export default function TasksPage() {
           {latestLogs.length > 0 && (
             <Space direction="vertical" size={6} style={{ width: "100%" }}>
               <Text type="secondary">{t("tasks.latestLog")}</Text>
-              <div
-                style={{
-                  maxHeight: 180,
-                  overflow: "auto",
-                  background: "rgba(0,0,0,0.04)",
-                  padding: 8,
-                  borderRadius: 6,
-                  fontFamily: "ui-monospace, monospace",
-                  fontSize: 12,
-                }}
-              >
-                {latestLogs.map((l) => (
-                  <div key={l.id}>
-                    <span style={{ color: l.stream === "stderr" ? "#c0392b" : undefined }}>
-                      {l.text}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <LogStream logs={latestLogs} emptyText={t("translate.logEmpty")} height={180} />
             </Space>
           )}
         </Space>
       )}
     </Card>
   );
-}
-
-function cap(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
