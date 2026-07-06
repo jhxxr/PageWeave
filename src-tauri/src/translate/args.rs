@@ -29,6 +29,8 @@ pub fn build_args(req: &TranslateRequest, api_key: &str) -> Vec<String> {
         // MVP defaults: better reader compat + auto OCR for scanned PDFs.
         "--enhance-compatibility".into(),
         "--auto-enable-ocr-workaround".into(),
+        "--watermark-output-mode".into(),
+        "no_watermark".into(),
         "--report-interval".into(),
         "0.1".into(),
     ];
@@ -44,4 +46,38 @@ pub fn build_args(req: &TranslateRequest, api_key: &str) -> Vec<String> {
     }
 
     args
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::translate::model::{OutputMode, TranslateProvider};
+
+    fn req() -> TranslateRequest {
+        TranslateRequest {
+            task_id: None,
+            pdf_paths: vec!["C:/tmp/input.pdf".into()],
+            output_dir: "C:/tmp/out".into(),
+            lang_in: "en".into(),
+            lang_out: "zh".into(),
+            output_mode: OutputMode::Mono,
+            provider: TranslateProvider {
+                base_url: "https://example.test/v1".into(),
+                api_key_id: "key_test".into(),
+                model: "m".into(),
+            },
+            qps: 1,
+        }
+    }
+
+    #[test]
+    fn requests_no_watermark_output() {
+        let args = build_args(&req(), "sk-test");
+        let watermark_arg = args
+            .windows(2)
+            .find(|pair| pair[0] == "--watermark-output-mode")
+            .map(|pair| pair[1].as_str());
+
+        assert_eq!(watermark_arg, Some("no_watermark"));
+    }
 }
