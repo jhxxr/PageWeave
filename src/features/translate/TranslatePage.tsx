@@ -29,7 +29,6 @@ import { useTranslation } from "react-i18next";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
-import { stat } from "@tauri-apps/plugin-fs";
 import { useNavigate } from "react-router-dom";
 import { useTranslateStore } from "../../stores/translateStore";
 import { useProviderStore } from "../../stores/providerStore";
@@ -94,16 +93,7 @@ export default function TranslatePage() {
           message.info(t("translate.onePdfOnly"));
         }
         const items: FileItem[] = await Promise.all(
-          paths.slice(0, 1).map(async (p) => {
-            const name = p.split(/[\\/]/).pop() ?? p;
-            let size = 0;
-            try {
-              size = (await stat(p)).size;
-            } catch {
-              size = 0;
-            }
-            return { path: p, name, size, status: "idle" };
-          }),
+          paths.slice(0, 1).map(createFileItem),
         );
         st.addFiles(items);
       });
@@ -119,17 +109,7 @@ export default function TranslatePage() {
     });
     const paths = Array.isArray(res) ? res : res ? [res] : [];
     if (!paths.length) return;
-    const items: FileItem[] = [];
-    for (const p of paths) {
-      const name = p.split(/[\\/]/).pop() ?? p;
-      let size = 0;
-      try {
-        size = (await stat(p)).size;
-      } catch {
-        size = 0;
-      }
-      items.push({ path: p, name, size, status: "idle" });
-    }
+    const items = await Promise.all(paths.map(createFileItem));
     st.addFiles(items);
   }
 
@@ -286,7 +266,7 @@ export default function TranslatePage() {
               title: t("translate.sizeCol"),
               dataIndex: "size",
               width: 100,
-              render: (v: number) => formatBytes(v),
+              render: (v: number | null) => (v == null ? "-" : formatBytes(v)),
             },
             {
               title: t("translate.statusCol"),
@@ -523,4 +503,14 @@ export default function TranslatePage() {
 
 function cap(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+async function createFileItem(path: string): Promise<FileItem> {
+  const name = path.split(/[\\/]/).pop() ?? path;
+  try {
+    const size = await translateApi.fileSize(path);
+    return { path, name, size, status: "idle" };
+  } catch {
+    return { path, name, size: null, status: "idle" };
+  }
 }

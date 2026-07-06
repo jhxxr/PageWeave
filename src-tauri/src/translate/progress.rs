@@ -1,5 +1,7 @@
 use regex::Regex;
 
+use crate::translate::runner::decode_process_output;
+
 /// Stateful parser for babeldoc's rich/tqdm progress output on stderr.
 ///
 /// rich refreshes the active progress line in place using `\r` (carriage return),
@@ -42,30 +44,33 @@ impl ProgressParser {
         let mut out = Vec::new();
         loop {
             // Find the next CR or LF.
-            let pos = self
-                .pending
-                .iter()
-                .position(|&b| b == b'\r' || b == b'\n');
+            let pos = self.pending.iter().position(|&b| b == b'\r' || b == b'\n');
             let Some(pos) = pos else { break };
             let line_bytes: Vec<u8> = self.pending.drain(..=pos).collect();
             // strip trailing CR/LF
             let mut text_bytes = &line_bytes[..];
-            while !text_bytes.is_empty() && (text_bytes.last() == Some(&b'\r') || text_bytes.last() == Some(&b'\n')) {
+            while !text_bytes.is_empty()
+                && (text_bytes.last() == Some(&b'\r') || text_bytes.last() == Some(&b'\n'))
+            {
                 text_bytes = &text_bytes[..text_bytes.len() - 1];
             }
             if text_bytes.is_empty() {
                 continue;
             }
-            let raw = String::from_utf8_lossy(text_bytes).to_string();
+            let raw = decode_process_output(text_bytes);
             let clean = strip_ansi(&self.ansi_re, &raw);
             if clean.trim().is_empty() {
                 continue;
             }
-            let overall = self.pct_re.captures(&clean).and_then(|c| {
-                c[1].parse::<u32>().ok().filter(|&v| v <= 100)
-            });
+            let overall = self
+                .pct_re
+                .captures(&clean)
+                .and_then(|c| c[1].parse::<u32>().ok().filter(|&v| v <= 100));
             // For stage: rich prints `desc (cur/total)` then the bar.
-            let stage = self.stage_re.captures(&clean).map(|c| c[1].trim().to_string());
+            let stage = self
+                .stage_re
+                .captures(&clean)
+                .map(|c| c[1].trim().to_string());
             if let Some(v) = overall {
                 self.last_overall = v;
             }
@@ -88,16 +93,20 @@ impl ProgressParser {
         if self.pending.is_empty() {
             return vec![];
         }
-        let raw = String::from_utf8_lossy(&self.pending).to_string();
+        let raw = decode_process_output(&self.pending);
         self.pending.clear();
         let clean = strip_ansi(&self.ansi_re, &raw);
         if clean.trim().is_empty() {
             return vec![];
         }
-        let overall = self.pct_re.captures(&clean).and_then(|c| {
-            c[1].parse::<u32>().ok().filter(|&v| v <= 100)
-        });
-        let stage = self.stage_re.captures(&clean).map(|c| c[1].trim().to_string());
+        let overall = self
+            .pct_re
+            .captures(&clean)
+            .and_then(|c| c[1].parse::<u32>().ok().filter(|&v| v <= 100));
+        let stage = self
+            .stage_re
+            .captures(&clean)
+            .map(|c| c[1].trim().to_string());
         vec![ParsedLine {
             text: clean,
             overall,
@@ -140,5 +149,14 @@ mod tests {
         let mut p = ProgressParser::new();
         let lines = p.push_bytes(b"not a real 999% thing\n");
         assert!(lines[0].overall.is_none());
+    }
+
+    #[test]
+    fn decodes_gbk_log_lines() {
+        let mut p = ProgressParser::new();
+        let lines = p.push_bytes(&[0xd6, 0xd0, 0xce, 0xc4, b' ', b'4', b'5', b'%', b'\n']);
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].text, "中文 45%");
+        assert_eq!(lines[0].overall, Some(45));
     }
 }

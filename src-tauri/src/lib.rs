@@ -59,6 +59,7 @@ pub fn run() {
             tcmd::start_translate,
             tcmd::cancel_translate,
             tcmd::get_babeldoc_info,
+            tcmd::get_file_size,
             acmd::get_offline_assets_info,
             acmd::install_offline_assets_from_file,
             acmd::install_offline_assets_from_release,

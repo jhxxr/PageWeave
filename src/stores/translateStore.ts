@@ -11,7 +11,7 @@ export interface FileItem {
   /** Absolute path. */
   path: string;
   name: string;
-  size: number;
+  size: number | null;
   status: TaskStatus;
 }
 

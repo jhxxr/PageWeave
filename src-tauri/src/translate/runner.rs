@@ -2,6 +2,7 @@ use std::path::Path;
 use std::process::Stdio;
 use std::sync::Arc;
 
+use encoding_rs::GBK;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Child;
@@ -157,7 +158,7 @@ pub async fn run_translate(app: AppHandle, task_id: String, req: TranslateReques
                 match reader.read_until(b'\n', &mut buf).await {
                     Ok(0) => break,
                     Ok(_) => {
-                        let line = String::from_utf8_lossy(&buf).trim().to_string();
+                        let line = decode_process_output(&buf).trim().to_string();
                         if !line.is_empty() {
                             let _ = app2.emit(
                                 "translate://progress",
@@ -265,7 +266,16 @@ fn build_command(
     };
     let mut c = tokio::process::Command::new(sidecar);
     c.args(argv);
+    hide_child_console(&mut c);
     Ok(c)
+}
+
+pub(crate) fn hide_child_console(cmd: &mut tokio::process::Command) {
+    #[cfg(windows)]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
 }
 
 /// Look for a bundled `babeldoc-sidecar(.exe)` next to the running app executable.
@@ -456,12 +466,14 @@ fn is_babeldoc_output(name: &str, stem: &str, kind: &str) -> bool {
 /// Probe whether the bundled BabelDOC sidecar is available.
 pub async fn probe_babeldoc(app: Option<&AppHandle>) -> BabeldocInfo {
     if let Some(sidecar) = resolve_sidecar(app) {
-        let version = tokio::process::Command::new(&sidecar)
+        let mut cmd = tokio::process::Command::new(&sidecar);
+        hide_child_console(&mut cmd);
+        let version = cmd
             .arg("--version")
             .output()
             .await
             .ok()
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .map(|o| decode_process_output(&o.stdout).trim().to_string())
             .filter(|s| !s.is_empty());
         return BabeldocInfo {
             installed: true,
@@ -475,6 +487,16 @@ pub async fn probe_babeldoc(app: Option<&AppHandle>) -> BabeldocInfo {
         version: None,
         path: None,
         hint: "未检测到内置 BabelDOC sidecar，请重新安装 PageWeave。".into(),
+    }
+}
+
+pub(crate) fn decode_process_output(bytes: &[u8]) -> String {
+    match std::str::from_utf8(bytes) {
+        Ok(s) => s.to_string(),
+        Err(_) => {
+            let (decoded, _, _) = GBK.decode(bytes);
+            decoded.into_owned()
+        }
     }
 }
 
@@ -541,5 +563,11 @@ mod tests {
         assert!(outputs[0].ends_with("-mono.pdf"));
 
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn decodes_utf8_before_falling_back_to_gbk() {
+        assert_eq!(decode_process_output("中文".as_bytes()), "中文");
+        assert_eq!(decode_process_output(&[0xd6, 0xd0, 0xce, 0xc4]), "中文");
     }
 }

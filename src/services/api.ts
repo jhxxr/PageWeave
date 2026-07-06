@@ -46,6 +46,7 @@ export const providerApi = {
 export const translateApi = {
   start: (req: TranslateRequest) => call<string>("start_translate", { req }),
   cancel: (task_id: string) => call<boolean>("cancel_translate", { taskId: task_id }),
+  fileSize: (path: string) => call<number>("get_file_size", { path }),
   babeldocInfo: () => call<BabeldocInfo>("get_babeldoc_info"),
   offlineAssetsInfo: () => call<OfflineAssetsInfo>("get_offline_assets_info"),
   installOfflineAssetsFromRelease: () =>

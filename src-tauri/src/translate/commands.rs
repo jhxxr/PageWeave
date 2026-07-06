@@ -80,6 +80,21 @@ pub async fn get_babeldoc_info(app: AppHandle) -> AppResult<BabeldocInfo> {
     Ok(runner::probe_babeldoc(Some(&app)).await)
 }
 
+#[tauri::command]
+pub fn get_file_size(path: String) -> AppResult<u64> {
+    let metadata = std::fs::metadata(&path).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            AppError::NotFound(format!("file not found: {path}"))
+        } else {
+            AppError::Io(format!("read file metadata for {path}: {e}"))
+        }
+    })?;
+    if !metadata.is_file() {
+        return Err(AppError::InvalidInput(format!("not a file: {path}")));
+    }
+    Ok(metadata.len())
+}
+
 /// Helper used by `lib.rs` setup to create the registry state.
 pub fn new_registry() -> Arc<TaskRegistry> {
     TaskRegistry::new()

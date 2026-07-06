@@ -186,8 +186,12 @@ async fn restore_offline_assets(app: &AppHandle, asset_dir: &Path) -> AppResult<
         return Ok(());
     }
 
-    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
-    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let stderr = super::runner::decode_process_output(&out.stderr)
+        .trim()
+        .to_string();
+    let stdout = super::runner::decode_process_output(&out.stdout)
+        .trim()
+        .to_string();
     let detail = if stderr.is_empty() { stdout } else { stderr };
     Err(AppError::Translate(format!(
         "恢复离线资源失败: {}",
@@ -207,6 +211,7 @@ fn restore_command(app: &AppHandle, asset_dir: &Path) -> AppResult<Command> {
     };
     let mut cmd = Command::new(sidecar);
     cmd.arg("--restore-offline-assets").arg(asset_dir);
+    super::runner::hide_child_console(&mut cmd);
     Ok(cmd)
 }
 
