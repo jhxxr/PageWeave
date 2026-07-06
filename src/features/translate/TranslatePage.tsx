@@ -128,6 +128,17 @@ export default function TranslatePage() {
     [providers, st.providerId],
   );
 
+  const advancedCount = useMemo(
+    () =>
+      Object.values(st.advanced as Record<string, unknown>).filter(
+        (v) =>
+          v !== undefined &&
+          v !== "" &&
+          !(Array.isArray(v) && v.length === 0),
+      ).length,
+    [st.advanced],
+  );
+
   const canStart =
     st.files.length > 0 &&
     !!st.providerId &&
@@ -182,6 +193,7 @@ export default function TranslatePage() {
         model,
       },
       qps: st.qps,
+      advanced: st.advanced,
     };
     try {
       const taskId = await translateApi.start(req);
@@ -401,6 +413,15 @@ export default function TranslatePage() {
             >
               {t("translate.cancel")}
             </Button>
+            <Tooltip title={t("params.resetHint")}>
+              <Tag
+                color={advancedCount ? "blue" : "default"}
+                style={{ cursor: "pointer", marginInlineStart: 8 }}
+                onClick={() => nav("/params")}
+              >
+                {t("params.appliedCount", { count: advancedCount })}
+              </Tag>
+            </Tooltip>
           </Space>
         </Space>
       </Card>

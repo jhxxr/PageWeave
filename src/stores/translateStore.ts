@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { AdvancedParams } from "../types";
 
 export type TaskStatus =
   | "idle"
@@ -39,6 +40,10 @@ interface TranslateState {
   statusMessage: string;
   babeldocInstalled: boolean | null;
   babeldocHint: string;
+  /** Advanced BabelDOC params. `{}` ⇒ all-undefined ⇒ historical defaults.
+   * Survives `resetTask` (it's a user pref like `langIn`/`providerId`).
+   * Session-only: not persisted across app restarts. */
+  advanced: AdvancedParams;
 
   setFiles: (f: FileItem[]) => void;
   addFiles: (f: FileItem[]) => void;
@@ -58,6 +63,10 @@ interface TranslateState {
   setOutputFiles: (f: string[]) => void;
   setStatusMessage: (m: string) => void;
   setBabeldoc: (installed: boolean, hint: string) => void;
+  /** Shallow-merge a patch into `advanced`. Use `undefined` to clear a field. */
+  setAdvanced: (patch: Partial<AdvancedParams>) => void;
+  /** Reset `advanced` to `{}` (all historical defaults). */
+  resetAdvanced: () => void;
   resetTask: () => void;
 }
 
@@ -81,6 +90,7 @@ export const useTranslateStore = create<TranslateState>((set, get) => ({
   statusMessage: "",
   babeldocInstalled: null,
   babeldocHint: "",
+  advanced: {},
 
   setFiles: (f) => set({ files: f.slice(0, 1) }),
   addFiles: (f) =>
@@ -114,6 +124,9 @@ export const useTranslateStore = create<TranslateState>((set, get) => ({
   setStatusMessage: (m) => set({ statusMessage: m }),
   setBabeldoc: (installed, hint) =>
     set({ babeldocInstalled: installed, babeldocHint: hint }),
+  setAdvanced: (patch) =>
+    set((st) => ({ advanced: { ...st.advanced, ...patch } })),
+  resetAdvanced: () => set({ advanced: {} }),
   resetTask: () =>
     set({
       taskId: null,

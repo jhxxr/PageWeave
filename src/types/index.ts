@@ -75,6 +75,58 @@ export interface AppError {
 
 export type OutputMode = "mono" | "dual" | "both";
 
+/** OCR handling strategy. `"auto"` is the historical default. */
+export type OcrMode = "auto" | "off" | "force";
+
+/** Primary font family override. `"auto"` = omit the flag (babeldoc auto). */
+export type FontFamily = "auto" | "serif" | "sans-serif" | "script";
+
+/**
+ * Advanced BabelDOC parameters. All fields optional; `undefined` = use the
+ * historical default. Two fields have non-"emit nothing" defaults:
+ * - `enhance_compatibility`: `undefined` ⇒ `true` (emit `--enhance-compatibility`)
+ * - `ocr_mode`: `undefined` ⇒ `"auto"` (emit `--auto-enable-ocr-workaround`)
+ * Mirrors `AdvancedParams` in src-tauri/src/translate/model.rs.
+ */
+export interface AdvancedParams {
+  // Translation scope
+  pages?: string;
+  min_text_length?: number;
+  max_pages_per_part?: number;
+
+  // Glossary
+  glossary_files?: string[];
+  no_auto_extract_glossary?: boolean;
+  save_auto_extracted_glossary?: boolean;
+
+  // Fonts & layout
+  primary_font_family?: FontFamily;
+  use_alternating_pages_dual?: boolean;
+  dual_translate_first?: boolean;
+
+  // OCR & compatibility
+  ocr_mode?: OcrMode;
+  enhance_compatibility?: boolean;
+  skip_clean?: boolean;
+  disable_rich_text_translate?: boolean;
+  translate_table_text?: boolean;
+  disable_graphic_element_process?: boolean;
+  no_merge_alternating_line_numbers?: boolean;
+  disable_same_text_fallback?: boolean;
+
+  // Cache & pools
+  ignore_cache?: boolean;
+  pool_max_workers?: number;
+  term_pool_max_workers?: number;
+
+  // OpenAI tuning
+  custom_system_prompt?: string;
+  no_send_temperature?: boolean;
+  enable_json_mode_if_requested?: boolean;
+  send_dashscope_header?: boolean;
+  openai_reasoning?: string;
+}
+
 export interface TranslateRequest {
   task_id?: string;
   pdf_paths: string[];
@@ -84,6 +136,7 @@ export interface TranslateRequest {
   output_mode: OutputMode;
   provider: { base_url: string; api_key_id: string; model: string };
   qps: number;
+  advanced?: AdvancedParams;
 }
 
 export interface BabeldocInfo {

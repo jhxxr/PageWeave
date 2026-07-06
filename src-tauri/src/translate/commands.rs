@@ -8,6 +8,22 @@ use crate::translate::model::{BabeldocInfo, TranslateEvent, TranslateRequest};
 use crate::translate::runner;
 use crate::translate::state::TaskRegistry;
 
+/// `^\s*\d+(-\d*)?(\s*,\s*\d+(-\d*)?)*\s*$` — accepts babeldoc's `--pages`
+/// format: `1`, `1,2`, `1-3`, `1-,-3`, `1,2-3,-5`. Compiled once.
+static PAGES_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+fn pages_re() -> &'static regex::Regex {
+    PAGES_RE.get_or_init(|| {
+        regex::Regex::new(r"^\s*\d+(-\d*)?(\s*,\s*\d+(-\d*)?)*\s*$")
+            .expect("pages regex is a valid literal")
+    })
+}
+
+/// Conservative cap on `--custom-system-prompt` length. Windows `CreateProcess`
+/// has a ~32k total cmdline limit; we cap the prompt well below that so long
+/// paths + the rest of the argv still fit. Larger prompts should go through a
+/// `--config` toml (known debt, see args.rs header).
+const CUSTOM_SYSTEM_PROMPT_MAX_CHARS: usize = 8000;
+
 /// Start a translation. Returns the task_id immediately; progress flows over the
 /// `translate://progress` event. This command never blocks on the translation itself.
 #[tauri::command]
@@ -37,6 +53,9 @@ pub async fn start_translate(app: AppHandle, req: TranslateRequest) -> AppResult
     }
     if req.qps == 0 {
         return Err(AppError::InvalidInput("QPS 必须大于 0".into()));
+    }
+    if let Some(ref a) = req.advanced {
+        validate_advanced(a)?;
     }
     if !assets::offline_assets_info().installed {
         return Err(AppError::InvalidInput(
@@ -98,4 +117,49 @@ pub fn get_file_size(path: String) -> AppResult<u64> {
 /// Helper used by `lib.rs` setup to create the registry state.
 pub fn new_registry() -> Arc<TaskRegistry> {
     TaskRegistry::new()
+}
+
+/// Validate the advanced-params block. Only fields that are `Some` are checked;
+/// `None` fields keep their historical-default semantics (see `args::build_args`).
+fn validate_advanced(a: &crate::translate::model::AdvancedParams) -> AppResult<()> {
+    if let Some(ref p) = a.pages {
+        let p = p.trim();
+        if !p.is_empty() && !pages_re().is_match(p) {
+            return Err(AppError::InvalidInput(
+                "pages 格式无效，例如 1,2,1-3,-3".into(),
+            ));
+        }
+    }
+    for (name, val) in [
+        ("min_text_length", a.min_text_length),
+        ("max_pages_per_part", a.max_pages_per_part),
+        ("pool_max_workers", a.pool_max_workers),
+        ("term_pool_max_workers", a.term_pool_max_workers),
+    ] {
+        if let Some(n) = val {
+            if n == 0 {
+                return Err(AppError::InvalidInput(format!("{name} 必须 ≥ 1")));
+            }
+        }
+    }
+    if let Some(ref files) = a.glossary_files {
+        for f in files {
+            if f.contains(',') {
+                return Err(AppError::InvalidInput(format!(
+                    "术语表路径不能包含逗号: {f}"
+                )));
+            }
+            if !std::path::Path::new(f).is_file() {
+                return Err(AppError::NotFound(format!("术语表文件不存在: {f}")));
+            }
+        }
+    }
+    if let Some(ref s) = a.custom_system_prompt {
+        if s.chars().count() > CUSTOM_SYSTEM_PROMPT_MAX_CHARS {
+            return Err(AppError::InvalidInput(format!(
+                "custom_system_prompt 过长（上限 {CUSTOM_SYSTEM_PROMPT_MAX_CHARS} 字符）"
+            )));
+        }
+    }
+    Ok(())
 }

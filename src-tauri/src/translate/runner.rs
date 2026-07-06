@@ -519,6 +519,7 @@ mod tests {
                 model: "m".into(),
             },
             qps: 1,
+            advanced: None,
         }
     }
 

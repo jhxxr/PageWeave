@@ -660,3 +660,87 @@ def main() -> int:
     cli()
     return 0
 ```
+
+---
+
+## Scenario: Advanced BabelDOC Params CLI No-Regression
+
+### 1. Scope / Trigger
+
+- Trigger: `TranslateRequest.advanced` carries user-tunable BabelDOC flags from the `/params` page into `args::build_args`.
+- Scope: `AdvancedParams` / `OcrMode` in `src-tauri/src/translate/model.rs`, `build_args` in `src-tauri/src/translate/args.rs`, validation in `src-tauri/src/translate/commands.rs`, and the TypeScript mirror in `src/types/index.ts`.
+- Risk: Silently regressing the default babeldoc argv (e.g. dropping `--enhance-compatibility` or `--auto-enable-ocr-workaround`) changes translation quality/compat behavior for every existing user.
+
+### 2. Signatures
+
+- Rust: `pub fn build_args(req: &TranslateRequest, api_key: &str) -> Vec<String>`
+- Rust struct: `AdvancedParams` (all fields `Option<T>`, `#[serde(default)]`)
+- TS mirror: `AdvancedParams` in `src/types/index.ts`, `advanced?: AdvancedParams` on `TranslateRequest`
+
+### 3. Contracts
+
+- When `req.advanced` is `None` **or** every field is `None`, the returned argv is byte-identical to the pre-advanced-params argv (the `default_advanced_matches_baseline` / `empty_advanced_matches_baseline` tests lock this).
+- Two fields have historical defaults that differ from "emit nothing":
+  - `enhance_compatibility`: `None` ⇒ `true` ⇒ emit `--enhance-compatibility` (and IGNORE the three sub-flags).
+  - `ocr_mode`: `None` ⇒ `Auto` ⇒ emit `--auto-enable-ocr-workaround`.
+- When `enhance_compatibility` is `Some(false)`, emit the individual sub-flags (`--skip-clean`, `--disable-rich-text-translate`, `--dual-translate-first`) per their own toggles; do **not** emit `--enhance-compatibility`.
+- OCR tri-state emits exactly one of `--auto-enable-ocr-workaround` / `--skip-scanned-detection` / `--ocr-workaround`.
+- dual-only flags (`--dual-translate-first`, `--use-alternating-pages-dual`) are emitted only when `output_mode != Mono`.
+- `--watermark-output-mode no_watermark` and `--report-interval 0.1` stay hardcoded (not exposed in the advanced UI).
+- `primary_font_family = "auto"` and empty-string text fields omit the flag.
+- `glossary_files` join with `,` (so paths containing `,` are rejected in validation).
+- New curated flags must appear in `babeldoc-sidecar --help`; before adding one, run the help smoke check.
+
+### 4. Validation & Error Matrix
+
+- Frontend sends no `advanced` field (old build) → serde `#[serde(default)]` ⇒ `None` ⇒ baseline argv. UI works unchanged.
+- `enhance_compatibility: Some(true)` + `skip_clean: Some(true)` → only `--enhance-compatibility`; `--skip-clean` is NOT emitted (no double-coverage).
+- `output_mode: Mono` + `dual_translate_first: Some(true)` + bundle off → `--dual-translate-first` NOT emitted (dual-only).
+- `pages = "foo"` → `start_translate` returns `invalid_input` before spawning the sidecar.
+- Glossary path containing `,` → `invalid_input`; missing file → `not_found`.
+- `custom_system_prompt` > 8000 chars → `invalid_input` (Windows 32k cmdline guard).
+- BabelDOC renames a curated flag → sidecar argparse errors at startup; CI must pin the sidecar version.
+
+### 5. Good/Base/Bad Cases
+
+- Good: User sets `pages=1-3` + a real glossary CSV + `ocr_mode=force` + `enhance_compatibility=false`+`skip_clean=true`; log panel shows `--pages 1-3 --glossary-files <path> --ocr-workaround --skip-clean` and no `--enhance-compatibility`.
+- Base: User leaves all advanced params unset; argv equals the pre-advanced baseline and translation behaves identically.
+- Bad: Adding a new `AdvancedParams` field without a `build_args` branch and a baseline-preservation test → silent no-op or a regression that the test suite cannot catch.
+
+### 6. Tests Required
+
+- `default_advanced_matches_baseline` and `empty_advanced_matches_baseline` — the no-regression lock.
+- `compat_off_emits_subflags_not_bundle`, `compat_on_ignores_individuals`.
+- `ocr_off_emits_skip_scanned`, `ocr_force_emits_ocr_workaround`, `ocr_auto_is_default`.
+- `glossary_files_joined_with_comma`, `pages_emitted_when_set`, `min_text_length_emitted_when_set`.
+- `dual_translate_first_skipped_in_mono`, `use_alternating_pages_dual_skipped_in_mono`.
+- Existing `requests_no_watermark_output` must stay green.
+- `pnpm exec tsc --noEmit` validates the TS mirror.
+- Sidecar help smoke: every curated flag appears in `babeldoc-sidecar.exe --help`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```rust
+// Field defaults to false on Some(false) but None also means "no flag",
+// silently dropping --enhance-compatibility for every existing user.
+pub enhance_compatibility: Option<bool>,
+// in build_args:
+if a.and_then(|x| x.enhance_compatibility).unwrap_or(false) {
+    args.push("--enhance-compatibility".into());
+}
+```
+
+#### Correct
+
+```rust
+// None ⇒ historical default (true); Some(false) ⇒ opt out explicitly.
+let enhance = a.and_then(|x| x.enhance_compatibility).unwrap_or(true);
+if enhance {
+    args.push("--enhance-compatibility".into());
+} else {
+    // individual sub-flags honored only when the bundle is off
+}
+```
+

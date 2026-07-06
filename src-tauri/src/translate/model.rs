@@ -8,6 +8,88 @@ pub enum OutputMode {
     Both,
 }
 
+/// OCR handling strategy. `Auto` is the historical default (emits
+/// `--auto-enable-ocr-workaround`); `None` in `AdvancedParams` is interpreted
+/// as `Auto` so that an unset request reproduces today's CLI args verbatim.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum OcrMode {
+    Auto,
+    Off,
+    Force,
+}
+
+/// Advanced BabelDOC parameters. Every field is `Option` so that "unset" can
+/// be distinguished from "explicitly false/zero". Two fields have historical
+/// defaults that differ from "emit nothing":
+/// - `enhance_compatibility`: `None` ⇒ `true` (emit `--enhance-compatibility`)
+/// - `ocr_mode`: `None` ⇒ `Auto` (emit `--auto-enable-ocr-workaround`)
+/// All other fields: `None` ⇒ do not emit the flag.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+pub struct AdvancedParams {
+    // Translation scope
+    #[serde(default)]
+    pub pages: Option<String>,
+    #[serde(default)]
+    pub min_text_length: Option<u32>,
+    #[serde(default)]
+    pub max_pages_per_part: Option<u32>,
+
+    // Glossary
+    #[serde(default)]
+    pub glossary_files: Option<Vec<String>>,
+    #[serde(default)]
+    pub no_auto_extract_glossary: Option<bool>,
+    #[serde(default)]
+    pub save_auto_extracted_glossary: Option<bool>,
+
+    // Fonts & layout
+    #[serde(default)]
+    pub primary_font_family: Option<String>,
+    #[serde(default)]
+    pub use_alternating_pages_dual: Option<bool>,
+    #[serde(default)]
+    pub dual_translate_first: Option<bool>,
+
+    // OCR & compatibility
+    #[serde(default)]
+    pub ocr_mode: Option<OcrMode>,
+    #[serde(default)]
+    pub enhance_compatibility: Option<bool>,
+    #[serde(default)]
+    pub skip_clean: Option<bool>,
+    #[serde(default)]
+    pub disable_rich_text_translate: Option<bool>,
+    #[serde(default)]
+    pub translate_table_text: Option<bool>,
+    #[serde(default)]
+    pub disable_graphic_element_process: Option<bool>,
+    #[serde(default)]
+    pub no_merge_alternating_line_numbers: Option<bool>,
+    #[serde(default)]
+    pub disable_same_text_fallback: Option<bool>,
+
+    // Cache & pools
+    #[serde(default)]
+    pub ignore_cache: Option<bool>,
+    #[serde(default)]
+    pub pool_max_workers: Option<u32>,
+    #[serde(default)]
+    pub term_pool_max_workers: Option<u32>,
+
+    // OpenAI tuning
+    #[serde(default)]
+    pub custom_system_prompt: Option<String>,
+    #[serde(default)]
+    pub no_send_temperature: Option<bool>,
+    #[serde(default)]
+    pub enable_json_mode_if_requested: Option<bool>,
+    #[serde(default)]
+    pub send_dashscope_header: Option<bool>,
+    #[serde(default)]
+    pub openai_reasoning: Option<String>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct TranslateRequest {
     /// Optional client-provided id; otherwise Rust generates one.
@@ -22,6 +104,10 @@ pub struct TranslateRequest {
     pub provider: TranslateProvider,
     #[serde(default = "default_qps")]
     pub qps: u32,
+    /// Advanced BabelDOC params. `None` (old frontends) or all-`None` fields
+    /// reproduce the historical CLI args verbatim.
+    #[serde(default)]
+    pub advanced: Option<AdvancedParams>,
 }
 
 fn default_qps() -> u32 {

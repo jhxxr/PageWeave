@@ -206,3 +206,53 @@ Fixed PageWeave translation readiness to use required BabelDOC offline assets, r
 ### Next Steps
 
 - None - task complete
+
+
+## Session 7: Advanced translation params page
+
+**Date**: 2026-07-06
+**Task**: 07-06-advanced-params
+**Branch**: `master`
+
+### Summary
+
+Landed the `/params` page from an `Empty` placeholder into a real advanced-params editor. Added `AdvancedParams` / `OcrMode` to the Rust `TranslateRequest` contract, refactored `args::build_args` to honor them with a strict no-regression invariant (default argv byte-identical to pre-change), wired the frontend store + ParamsPage UI (six Collapse panels + reset + CLI preview) and TranslatePage passthrough, added `start_translate` validation, and filled zh/en i18n.
+
+### Main Changes
+
+- `src-tauri/src/translate/model.rs`: `OcrMode` enum + `AdvancedParams` struct (all `Option<T>` + `#[serde(default)]`) + `TranslateRequest.advanced: Option<AdvancedParams>`.
+- `src-tauri/src/translate/args.rs`: `build_args` rewritten — compat bundle resolution (ON ⇒ `--enhance-compatibility` + ignore sub-flags; OFF ⇒ individual sub-flags), OCR tri-state, dual-only gating, ~20 curated optional flags. 12 new unit tests incl. `default_advanced_matches_baseline` (no-regression lock).
+- `src-tauri/src/translate/commands.rs`: `validate_advanced` (pages regex via `OnceLock<Regex>`, numeric ≥1, glossary file existence + no-comma, `custom_system_prompt` ≤8000 chars).
+- `src-tauri/src/translate/runner.rs`: test `req()` helper gets `advanced: None`.
+- `src/types/index.ts`: `OcrMode`/`FontFamily`/`AdvancedParams` + `TranslateRequest.advanced?`.
+- `src/stores/translateStore.ts`: `advanced` slice + `setAdvanced`/`resetAdvanced`; `resetTask` untouched (advanced survives task reset, session-only).
+- `src/features/params/ParamsPage.tsx`: Collapse × 6 (Scope/Glossary/Layout/OCR&Compat/Cache&Pools/OpenAI) + reset + CLI preview; dual-only & bundle-disable states wired.
+- `src/features/params/cliPreview.ts`: display-only argv preview, mirrors `build_args`.
+- `src/features/translate/TranslatePage.tsx`: `req.advanced = st.advanced` + appliedCount Tag → `/params`.
+- `src/i18n/locales/{zh,en}.ts`: ~80 `params.*` keys, `placeholder`→`intro`.
+- `.trellis/spec/backend/quality-guidelines.md`: new scenario "Advanced BabelDOC Params CLI No-Regression".
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| (pending) | feat: land advanced translation params page |
+
+### Testing
+
+- [OK] `cargo test -p pageweave` — 23 passed (incl. 12 new args tests, no-regression lock green).
+- [OK] `pnpm exec tsc --noEmit` — clean.
+- [OK] `pnpm exec vite build` — built.
+- [OK] i18n key completeness — 80 used / 81 defined in both zh and en.
+- [OK] sidecar help smoke — all 27 curated flags present in `babeldoc-sidecar.exe --help`.
+- [OK] sidecar runtime smoke — baseline argv reaches BabelDOC (fails on file-not-found as expected, no argparse error); advanced argv with `--skip-clean --ocr-workaround --pages 1-3 --glossary-files ...` accepted by argparse (BabelDOC then fails on missing PDF/glossary, not on flag parsing).
+- [PENDING] `pnpm tauri dev` full E2E with a real PDF + glossary.csv — blocked: port 1420 occupied by an existing vite process; did not kill a foreign process. Unit tests + sidecar help/argparse smoke cover the contract; user to run the in-app E2E from the plan's Gate I.
+
+### Status
+
+[OK] **Completed** (code + tests + spec; in-app E2E pending user run)
+
+### Next Steps
+
+- User: `pnpm tauri dev`, run Gate I from the plan (real PDF + glossary.csv, verify log panel argv).
+- Future: persist `advanced` across restarts (zustand persist or `app_settings`); `--config` toml for long `custom_system_prompt`; sidecar flag-drift detection.
