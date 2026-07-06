@@ -1,4 +1,4 @@
-import type { CSSProperties, RefObject } from "react";
+import { useMemo, type CSSProperties, type RefObject } from "react";
 import { Empty, Progress, Space, Tag, Typography } from "antd";
 import type { ProgressProps } from "antd";
 import type { LogLine, TaskStatus } from "../../stores/translateStore";
@@ -70,6 +70,8 @@ interface LogStreamProps {
 }
 
 export function LogStream({ logs, emptyText, height = 240, containerRef }: LogStreamProps) {
+  const displayLogs = useMemo(() => compactProgressLogs(logs), [logs]);
+
   if (logs.length === 0) {
     return (
       <div
@@ -83,15 +85,15 @@ export function LogStream({ logs, emptyText, height = 240, containerRef }: LogSt
 
   return (
     <div ref={containerRef} style={{ ...logBoxStyle, height }}>
-      {logs.map((line) => (
+      {displayLogs.map((line) => (
         <LogRow key={line.id} line={line} />
       ))}
     </div>
   );
 }
 
-function LogRow({ line }: { line: LogLine }) {
-  const parsed = parseLogText(line.text);
+function LogRow({ line }: { line: DisplayLogLine }) {
+  const parsed = line.parsed;
   const tone = line.stream === "stderr" ? "#d46b08" : "#1677ff";
 
   return (
@@ -116,6 +118,63 @@ function LogRow({ line }: { line: LogLine }) {
   );
 }
 
+interface ParsedLogText {
+  text: string;
+  stage: string;
+  detail: string;
+  percent: number | undefined;
+}
+
+interface DisplayLogLine extends LogLine {
+  parsed: ParsedLogText;
+}
+
+function compactProgressLogs(logs: LogLine[]): DisplayLogLine[] {
+  const rows: DisplayLogLine[] = [];
+  const progressIndexByStage = new Map<string, number>();
+
+  for (const line of logs) {
+    const parsed = parseLogText(line.text);
+    const key = progressLogKey(parsed);
+    if (!key) {
+      rows.push({ ...line, parsed });
+      continue;
+    }
+
+    const existingIndex = progressIndexByStage.get(key);
+    if (existingIndex == null) {
+      progressIndexByStage.set(key, rows.length);
+      rows.push({ ...line, parsed });
+      continue;
+    }
+
+    const existing = rows[existingIndex];
+    if (isCompleteProgress(existing.parsed)) {
+      if (parsed.percent != null && parsed.percent < 100) {
+        progressIndexByStage.set(key, rows.length);
+        rows.push({ ...line, parsed });
+      }
+      continue;
+    }
+
+    rows[existingIndex] = {
+      ...line,
+      id: existing.id,
+      parsed,
+    };
+  }
+
+  return rows;
+}
+
+function progressLogKey(parsed: ParsedLogText): string {
+  return parsed.stage;
+}
+
+function isCompleteProgress(parsed: ParsedLogText): boolean {
+  return parsed.percent != null && parsed.percent >= 100;
+}
+
 export function cap(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
@@ -132,7 +191,7 @@ function summarizeLogText(text: string): string {
   return parsed.detail ? `${parsed.stage} · ${parsed.detail}` : parsed.stage;
 }
 
-function parseLogText(text: string) {
+function parseLogText(text: string): ParsedLogText {
   const normalized = text.replace(/\s+/g, " ").trim();
   const percent = parsePercent(normalized);
   const counts = [...normalized.matchAll(/(\d+)\/(\d+|--)/g)];
