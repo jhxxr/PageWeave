@@ -20,7 +20,7 @@ pub fn presets() -> Vec<Preset> {
             category: ProviderCategory::Deepseek,
             label: "DeepSeek",
             base_url: "https://api.deepseek.com/v1",
-            models: &["deepseek-chat", "deepseek-reasoner"],
+            models: &["deepseek-v4-flash", "deepseek-v4-pro"],
         },
         Preset {
             category: ProviderCategory::Siliconflow,
