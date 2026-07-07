@@ -400,26 +400,29 @@ async fn read_stderr<R: tokio::io::AsyncRead + Unpin>(app: AppHandle, task_id: S
             Ok(n) => {
                 let lines = parser.push_bytes(&buf[..n]);
                 for line in lines {
-                    if let Some(overall) = line.overall {
+                    let is_progress_update = line.overall.is_some() || line.stage.is_some();
+                    if is_progress_update {
                         let _ = app.emit(
                             "translate://progress",
                             &TranslateEvent::Progress {
                                 task_id: task_id.clone(),
-                                overall,
+                                overall: line.overall.unwrap_or_else(|| parser.current()),
                                 stage: line.stage.clone().unwrap_or_default(),
                                 part_index: None,
                                 total_parts: None,
                             },
                         );
                     }
-                    let _ = app.emit(
-                        "translate://progress",
-                        &TranslateEvent::Log {
-                            task_id: task_id.clone(),
-                            line: mask_secrets(&line.text),
-                            stream: "stderr".into(),
-                        },
-                    );
+                    if !is_progress_update {
+                        let _ = app.emit(
+                            "translate://progress",
+                            &TranslateEvent::Log {
+                                task_id: task_id.clone(),
+                                line: mask_secrets(&line.text),
+                                stream: "stderr".into(),
+                            },
+                        );
+                    }
                 }
             }
             Err(_) => break,
@@ -427,26 +430,29 @@ async fn read_stderr<R: tokio::io::AsyncRead + Unpin>(app: AppHandle, task_id: S
     }
     // Flush trailing partial line.
     for line in parser.finish() {
-        if let Some(overall) = line.overall {
+        let is_progress_update = line.overall.is_some() || line.stage.is_some();
+        if is_progress_update {
             let _ = app.emit(
                 "translate://progress",
                 &TranslateEvent::Progress {
                     task_id: task_id.clone(),
-                    overall,
+                    overall: line.overall.unwrap_or_else(|| parser.current()),
                     stage: line.stage.clone().unwrap_or_default(),
                     part_index: None,
                     total_parts: None,
                 },
             );
         }
-        let _ = app.emit(
-            "translate://progress",
-            &TranslateEvent::Log {
-                task_id: task_id.clone(),
-                line: mask_secrets(&line.text),
-                stream: "stderr".into(),
-            },
-        );
+        if !is_progress_update {
+            let _ = app.emit(
+                "translate://progress",
+                &TranslateEvent::Log {
+                    task_id: task_id.clone(),
+                    line: mask_secrets(&line.text),
+                    stream: "stderr".into(),
+                },
+            );
+        }
     }
 }
 

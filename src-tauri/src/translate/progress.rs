@@ -15,6 +15,7 @@ pub struct ProgressParser {
     ansi_re: Regex,
     /// `stage (cur/total)` — rich/tqdm description line.
     stage_re: Regex,
+    desc_count_re: Regex,
     pct_re: Regex,
     parenthesized_ratio_re: Regex,
     count_re: Regex,
@@ -36,9 +37,10 @@ impl ProgressParser {
             last_overall: 0,
             ansi_re: Regex::new("\x1b\\[[0-9;]*[A-Za-z]").unwrap(),
             stage_re: Regex::new(r"(.+?)\s*\((\d+)[/:](\d+)\)").unwrap(),
+            desc_count_re: Regex::new(r"^(.+?)\s+-+\s+(\d+)(?:[/?](\d+|--))?").unwrap(),
             pct_re: Regex::new(r"(\d{1,3})%").unwrap(),
             parenthesized_ratio_re: Regex::new(r"\(\d+[/:]\d+\)").unwrap(),
-            count_re: Regex::new(r"(\d+)[/:](\d+)").unwrap(),
+            count_re: Regex::new(r"\b(\d+)/(\d+)\b").unwrap(),
         }
     }
 
@@ -110,7 +112,12 @@ impl ProgressParser {
         let stage = self
             .stage_re
             .captures(clean)
-            .map(|c| c[1].trim().to_string());
+            .map(|c| c[1].trim().to_string())
+            .or_else(|| {
+                self.desc_count_re
+                    .captures(clean)
+                    .map(|c| c[1].trim().to_string())
+            });
         if let Some(v) = overall {
             self.last_overall = v;
         }
@@ -119,7 +126,8 @@ impl ProgressParser {
 
     fn parse_count_progress(&self, clean: &str) -> Option<u32> {
         let without_stage_counts = self.parenthesized_ratio_re.replace_all(clean, "");
-        self.count_re
+        let count_progress = self
+            .count_re
             .captures_iter(&without_stage_counts)
             .filter_map(|c| {
                 let cur = c[1].parse::<u32>().ok()?;
@@ -129,7 +137,16 @@ impl ProgressParser {
                 }
                 Some(((cur.min(total) * 100) / total).min(100))
             })
-            .last()
+            .last();
+        count_progress.or_else(|| {
+            let c = self.desc_count_re.captures(clean)?;
+            let cur = c[2].parse::<u32>().ok()?;
+            let total = c.get(3)?.as_str().parse::<u32>().ok()?;
+            if total == 0 {
+                return None;
+            }
+            Some(((cur.min(total) * 100) / total).min(100))
+        })
     }
 }
 
@@ -186,6 +203,36 @@ mod tests {
         assert_eq!(lines.len(), 1);
         assert_eq!(lines[0].overall, None);
         assert_eq!(lines[0].stage.as_deref(), Some("Translate Paragraphs"));
+    }
+
+    #[test]
+    fn parses_rich_stage_count_without_total_as_stage_only() {
+        let mut p = ProgressParser::new();
+        let lines = p.push_bytes(b"translate -- 42 0:03 0:24\n");
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].overall, None);
+        assert_eq!(lines[0].stage.as_deref(), Some("translate"));
+        assert_eq!(p.current(), 0);
+    }
+
+    #[test]
+    fn parses_rich_stage_count_with_total() {
+        let mut p = ProgressParser::new();
+        let lines = p.push_bytes(b"translate -- 42/100 0:03 0:24\n");
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].overall, Some(42));
+        assert_eq!(lines[0].stage.as_deref(), Some("translate"));
+        assert_eq!(p.current(), 42);
+    }
+
+    #[test]
+    fn ignores_elapsed_and_remaining_time_counts() {
+        let mut p = ProgressParser::new();
+        let lines = p.push_bytes(b"translate --- 69/100 0:08 0:04\n");
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].overall, Some(69));
+        assert_eq!(lines[0].stage.as_deref(), Some("translate"));
+        assert_eq!(p.current(), 69);
     }
 
     #[test]

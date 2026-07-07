@@ -115,7 +115,7 @@ export default function App() {
             st.appendLog(ev.line, ev.stream);
             break;
           case "progress":
-            st.setProgress(ev.overall, ev.stage);
+            st.setProgress(ev.overall, ev.stage || undefined);
             break;
           case "status":
             st.setStatus(ev.status as never);

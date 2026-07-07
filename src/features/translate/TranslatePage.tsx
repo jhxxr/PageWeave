@@ -40,6 +40,7 @@ import {
   LogStream,
   ProgressOverview,
   cap,
+  latestReadableLog,
   statusColor,
 } from "./ProgressLogPanel";
 
@@ -442,7 +443,7 @@ export default function TranslatePage() {
           percent={st.progress}
           status={st.status}
           stage={st.stage}
-          latestLog={st.logs[st.logs.length - 1]?.text}
+          latestLog={latestReadableLog(st.logs)}
           stageLabel={t("translate.currentStage")}
           latestLabel={t("tasks.latestLog")}
         />
