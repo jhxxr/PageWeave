@@ -273,6 +273,7 @@ function extractStage(text: string): string {
   if (beforeBar) return beforeBar[1].trim();
   const beforeRichCount = text.match(/^(.+?)\s+-+\s+\d+(?:[/?](?:\d+|--))?/);
   if (beforeRichCount) return beforeRichCount[1].trim();
+  if (/^translate\s+\d{1,3}(?:\b|$)/.test(text)) return "translate";
   const beforeCount = text.match(/^(.+?)\s+\d+\/(?:\d+|--)\b/);
   return beforeCount ? beforeCount[1].replace(/-+$/g, "").trim() : "";
 }
@@ -283,6 +284,12 @@ interface RichProgressCount {
 }
 
 function parseRichProgressCount(text: string): RichProgressCount | undefined {
+  const translateCount = text.match(/^translate\s+(\d{1,3})(?:\b|$)/);
+  if (translateCount) {
+    const current = Number(translateCount[1]);
+    if (!Number.isFinite(current) || current > 100) return undefined;
+    return { current, total: 100 };
+  }
   const match = text.match(/^.+?\s+-+\s+(\d+)(?:[/?](\d+|--))?/);
   if (!match) return undefined;
   const current = Number(match[1]);

@@ -16,6 +16,7 @@ pub struct ProgressParser {
     /// `stage (cur/total)` — rich/tqdm description line.
     stage_re: Regex,
     desc_count_re: Regex,
+    translate_count_re: Regex,
     pct_re: Regex,
     parenthesized_ratio_re: Regex,
     count_re: Regex,
@@ -38,6 +39,7 @@ impl ProgressParser {
             ansi_re: Regex::new("\x1b\\[[0-9;]*[A-Za-z]").unwrap(),
             stage_re: Regex::new(r"(.+?)\s*\((\d+)[/:](\d+)\)").unwrap(),
             desc_count_re: Regex::new(r"^(.+?)\s+-+\s+(\d+)(?:[/?](\d+|--))?").unwrap(),
+            translate_count_re: Regex::new(r"^translate\s+(\d{1,3})(?:\b|$)").unwrap(),
             pct_re: Regex::new(r"(\d{1,3})%").unwrap(),
             parenthesized_ratio_re: Regex::new(r"\(\d+[/:]\d+\)").unwrap(),
             count_re: Regex::new(r"\b(\d+)/(\d+)\b").unwrap(),
@@ -117,6 +119,11 @@ impl ProgressParser {
                 self.desc_count_re
                     .captures(clean)
                     .map(|c| c[1].trim().to_string())
+            })
+            .or_else(|| {
+                self.translate_count_re
+                    .captures(clean)
+                    .map(|_| "translate".to_string())
             });
         if let Some(v) = overall {
             self.last_overall = v;
@@ -146,6 +153,9 @@ impl ProgressParser {
                 return None;
             }
             Some(((cur.min(total) * 100) / total).min(100))
+        }).or_else(|| {
+            let c = self.translate_count_re.captures(clean)?;
+            c[1].parse::<u32>().ok().filter(|&v| v <= 100)
         })
     }
 }
@@ -233,6 +243,16 @@ mod tests {
         assert_eq!(lines[0].overall, Some(69));
         assert_eq!(lines[0].stage.as_deref(), Some("translate"));
         assert_eq!(p.current(), 69);
+    }
+
+    #[test]
+    fn parses_translate_task_count_as_overall_progress() {
+        let mut p = ProgressParser::new();
+        let lines = p.push_bytes(b"translate 35\n");
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].overall, Some(35));
+        assert_eq!(lines[0].stage.as_deref(), Some("translate"));
+        assert_eq!(p.current(), 35);
     }
 
     #[test]
