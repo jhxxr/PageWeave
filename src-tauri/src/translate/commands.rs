@@ -125,6 +125,33 @@ pub fn get_file_size(path: String) -> AppResult<u64> {
     Ok(metadata.len())
 }
 
+#[tauri::command]
+pub fn open_file_path(path: String) -> AppResult<()> {
+    let metadata = std::fs::metadata(&path).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            AppError::NotFound(format!("file not found: {path}"))
+        } else {
+            AppError::Io(format!("read file metadata for {path}: {e}"))
+        }
+    })?;
+    if !metadata.is_file() {
+        return Err(AppError::InvalidInput(format!("not a file: {path}")));
+    }
+    tauri_plugin_opener::open_path(&path, None::<&str>)
+        .map_err(|e| AppError::Io(format!("open file {path}: {e}")))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn reveal_file_path(path: String) -> AppResult<()> {
+    if !std::path::Path::new(&path).exists() {
+        return Err(AppError::NotFound(format!("file not found: {path}")));
+    }
+    tauri_plugin_opener::reveal_item_in_dir(&path)
+        .map_err(|e| AppError::Io(format!("reveal file {path}: {e}")))?;
+    Ok(())
+}
+
 /// Helper used by `lib.rs` setup to create the registry state.
 pub fn new_registry() -> Arc<TaskRegistry> {
     TaskRegistry::new()

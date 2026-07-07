@@ -1,5 +1,5 @@
-import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { message } from "antd";
+import { translateApi } from "../services/api";
 
 function errorText(e: unknown) {
   return e instanceof Error ? e.message : String(e);
@@ -7,7 +7,7 @@ function errorText(e: unknown) {
 
 export async function openFilePath(path: string) {
   try {
-    await openPath(path);
+    await translateApi.openFilePath(path);
   } catch (e) {
     message.error(`打开文件失败：${errorText(e)}`);
   }
@@ -15,7 +15,7 @@ export async function openFilePath(path: string) {
 
 export async function revealFilePath(path: string) {
   try {
-    await revealItemInDir(path);
+    await translateApi.revealFilePath(path);
   } catch (e) {
     message.error(`打开所在文件夹失败：${errorText(e)}`);
   }

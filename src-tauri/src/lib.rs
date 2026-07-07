@@ -61,6 +61,8 @@ pub fn run() {
             tcmd::cancel_translate,
             tcmd::get_babeldoc_info,
             tcmd::get_file_size,
+            tcmd::open_file_path,
+            tcmd::reveal_file_path,
             hcmd::list_task_records,
             hcmd::delete_task_record,
             acmd::get_offline_assets_info,
