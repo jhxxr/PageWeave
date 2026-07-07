@@ -77,7 +77,7 @@ export const useTranslateStore = create<TranslateState>((set, get) => ({
   outputDir: "",
   langIn: "en",
   langOut: "zh",
-  outputMode: "dual",
+  outputMode: "mono",
   providerId: "",
   model: "",
   qps: 4,
