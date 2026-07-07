@@ -27,13 +27,13 @@ import {
 import { useTranslation } from "react-i18next";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useNavigate } from "react-router-dom";
 import { useTranslateStore } from "../../stores/translateStore";
 import { useProviderStore } from "../../stores/providerStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { translateApi } from "../../services/api";
 import { LANGUAGES, formatBytes } from "../../shared/constants";
+import { openFilePath, revealFilePath } from "../../shared/openers";
 import type { FileItem } from "../../stores/translateStore";
 import type { TranslateRequest } from "../../types";
 import {
@@ -458,7 +458,7 @@ export default function TranslatePage() {
                 <Button
                   size="small"
                   icon={<FilePdfOutlined style={{ color: "#ef4444" }} />}
-                  onClick={() => openPath(f)}
+                  onClick={() => void openFilePath(f)}
                 >
                   {t("translate.openFile")}
                 </Button>
@@ -466,7 +466,7 @@ export default function TranslatePage() {
                   <Button
                     size="small"
                     icon={<FolderOutlined />}
-                    onClick={() => revealItemInDir(f)}
+                    onClick={() => void revealFilePath(f)}
                   >
                     {t("translate.openFolder")}
                   </Button>

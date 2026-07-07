@@ -10,6 +10,7 @@ import type {
   ProviderPayload,
   ProviderPreset,
   ProviderRecord,
+  TaskRecord,
   TranslateRequest,
 } from "../types";
 
@@ -53,6 +54,8 @@ export const translateApi = {
     call<OfflineAssetsInstallResult>("install_offline_assets_from_release"),
   installOfflineAssetsFromFile: (path: string) =>
     call<OfflineAssetsInstallResult>("install_offline_assets_from_file", { path }),
+  listTaskRecords: () => call<TaskRecord[]>("list_task_records"),
+  deleteTaskRecord: (id: string) => call<boolean>("delete_task_record", { id }),
 };
 
 // ---- settings ----

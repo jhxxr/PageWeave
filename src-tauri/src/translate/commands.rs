@@ -4,6 +4,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::error::{AppError, AppResult};
 use crate::translate::assets;
+use crate::translate::history::{self, TaskRecord};
 use crate::translate::model::{BabeldocInfo, TranslateEvent, TranslateRequest};
 use crate::translate::runner;
 use crate::translate::state::TaskRegistry;
@@ -66,6 +67,7 @@ pub async fn start_translate(app: AppHandle, req: TranslateRequest) -> AppResult
         .task_id
         .clone()
         .unwrap_or_else(|| format!("task_{}", uuid::Uuid::new_v4().simple()));
+    history::create_record(&app, &TaskRecord::from_request(task_id.clone(), &req))?;
     let app2 = app.clone();
     let task_id2 = task_id.clone();
     tokio::spawn(async move {
@@ -90,6 +92,15 @@ pub async fn cancel_translate(app: AppHandle, task_id: String) -> AppResult<bool
             output_files: None,
             message: Some("用户已取消".into()),
         },
+    );
+    let _ = history::update_status(
+        &app,
+        &task_id,
+        "cancelled",
+        None,
+        None,
+        None,
+        Some("user cancelled".into()),
     );
     Ok(killed)
 }

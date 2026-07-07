@@ -229,6 +229,7 @@ const en = {
     statusMessage: "Message",
     outputFiles: "Output files",
     latestLog: "Latest log",
+    createdAt: "Created",
   },
   common: {
     ok: "OK",

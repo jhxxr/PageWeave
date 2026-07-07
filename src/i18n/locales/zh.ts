@@ -229,6 +229,7 @@ const zh = {
     statusMessage: "状态消息",
     outputFiles: "输出文件",
     latestLog: "最近日志",
+    createdAt: "创建时间",
   },
   common: {
     ok: "确定",

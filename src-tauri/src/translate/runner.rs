@@ -11,6 +11,7 @@ use tokio::sync::mpsc;
 use crate::db::DbState;
 use crate::secrets;
 use crate::translate::args;
+use crate::translate::history;
 use crate::translate::model::{BabeldocInfo, OutputMode, TranslateEvent, TranslateRequest};
 use crate::translate::progress::ProgressParser;
 
@@ -211,6 +212,14 @@ pub async fn run_translate(app: AppHandle, task_id: String, req: TranslateReques
     }
 
     if was_cancelled {
+        persist_status(
+            &app_for_wait,
+            &task_id_for_wait,
+            "cancelled",
+            None,
+            None,
+            Some("user cancelled".into()),
+        );
         let _ = app_for_wait.emit(
             "translate://progress",
             &TranslateEvent::Status {
@@ -223,6 +232,14 @@ pub async fn run_translate(app: AppHandle, task_id: String, req: TranslateReques
     } else if exit_ok {
         // Scan output dir for produced PDFs.
         let files = scan_outputs(&req, &task_id_for_wait);
+        persist_status(
+            &app_for_wait,
+            &task_id_for_wait,
+            "success",
+            Some(files.clone()),
+            Some(100),
+            None,
+        );
         let _ = app_for_wait.emit(
             "translate://progress",
             &TranslateEvent::Status {
@@ -243,6 +260,14 @@ pub async fn run_translate(app: AppHandle, task_id: String, req: TranslateReques
             ),
             Err(_) => ("error", "babeldoc 执行失败".into()),
         };
+        persist_status(
+            &app_for_wait,
+            &task_id_for_err,
+            status_str,
+            None,
+            None,
+            Some(msg.clone()),
+        );
         let _ = app_for_wait.emit(
             "translate://progress",
             &TranslateEvent::Status {
@@ -253,6 +278,17 @@ pub async fn run_translate(app: AppHandle, task_id: String, req: TranslateReques
             },
         );
     }
+}
+
+fn persist_status(
+    app: &AppHandle,
+    task_id: &str,
+    status: &str,
+    output_files: Option<Vec<String>>,
+    progress: Option<u32>,
+    message: Option<String>,
+) {
+    let _ = history::update_status(app, task_id, status, progress, None, output_files, message);
 }
 
 fn build_command(

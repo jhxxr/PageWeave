@@ -139,6 +139,25 @@ export interface TranslateRequest {
   advanced?: AdvancedParams;
 }
 
+export interface TaskRecord {
+  id: string;
+  pdf_paths: string[];
+  output_dir: string;
+  lang_in: string;
+  lang_out: string;
+  output_mode: OutputMode;
+  provider_base_url: string;
+  model: string;
+  qps: number;
+  status: string;
+  progress: number;
+  stage: string;
+  output_files: string[];
+  message: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface BabeldocInfo {
   installed: boolean;
   version?: string;

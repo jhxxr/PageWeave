@@ -11,6 +11,7 @@ use settings::commands as scmd;
 use tauri::Manager;
 use translate::assets as acmd;
 use translate::commands as tcmd;
+use translate::history as hcmd;
 use translate::state::TaskRegistry;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -60,6 +61,8 @@ pub fn run() {
             tcmd::cancel_translate,
             tcmd::get_babeldoc_info,
             tcmd::get_file_size,
+            hcmd::list_task_records,
+            hcmd::delete_task_record,
             acmd::get_offline_assets_info,
             acmd::install_offline_assets_from_file,
             acmd::install_offline_assets_from_release,
