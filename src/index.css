@@ -5,8 +5,59 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   margin: 0;
   padding: 0;
+  overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.app-shell {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-main-layout {
+  height: calc(100vh - 32px);
+}
+
+.app-titlebar {
+  height: 32px;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(248, 250, 252, 0.74)),
+    #f6f7fb;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.08);
+  user-select: none;
+}
+
+.app-titlebar-drag-region {
+  flex: 1;
+  min-width: 0;
+}
+
+.app-window-controls {
+  display: flex;
+  height: 32px;
+  flex: 0 0 auto;
+}
+
+.app-window-control.ant-btn {
+  width: 46px;
+  height: 32px;
+  border-radius: 0 !important;
+  color: #334155;
+  font-size: 12px;
+}
+
+.app-window-control.ant-btn:hover {
+  background: rgba(99, 102, 241, 0.1) !important;
+  color: #4f46e5 !important;
+}
+
+.app-window-control-close.ant-btn:hover {
+  background: #ef4444 !important;
+  color: #fff !important;
 }
 
 h1, h2, h3, h4, h5, h6, .brand-title {
@@ -90,6 +141,22 @@ h1, h2, h3, h4, h5, h6, .brand-title {
 .dark-theme .floating-sider {
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+}
+
+.dark-theme .app-titlebar {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.86), rgba(15, 23, 42, 0.72)),
+    #0f172a;
+  border-bottom-color: rgba(129, 140, 248, 0.1);
+}
+
+.dark-theme .app-window-control.ant-btn {
+  color: #cbd5e1;
+}
+
+.dark-theme .app-window-control.ant-btn:hover {
+  background: rgba(129, 140, 248, 0.16) !important;
+  color: #eef2ff !important;
 }
 
 /* Drag & Drop Area */

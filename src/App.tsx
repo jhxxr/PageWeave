@@ -1,16 +1,20 @@
 import { useEffect } from "react";
-import { Layout, Menu, theme as antdTheme } from "antd";
+import { Button, Layout, Menu, theme as antdTheme } from "antd";
 import {
+  CloseOutlined,
   FileTextOutlined,
   ApiOutlined,
   ControlOutlined,
   HistoryOutlined,
+  MinusOutlined,
   SettingOutlined,
+  BorderOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { listen } from "@tauri-apps/api/event";
 import type { UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useSettingsStore } from "./stores/settingsStore";
 import { useProviderStore } from "./stores/providerStore";
 import { useTranslateStore } from "./stores/translateStore";
@@ -20,6 +24,56 @@ import type { TranslateEvent } from "./types";
 import AppRoutes from "./app/routes";
 
 const { Sider, Content } = Layout;
+
+function AppTitleBar() {
+  const windowControls = [
+    {
+      key: "minimize",
+      label: "最小化",
+      icon: <MinusOutlined />,
+      onClick: () => void getCurrentWindow().minimize(),
+    },
+    {
+      key: "maximize",
+      label: "最大化",
+      icon: <BorderOutlined />,
+      onClick: () => void getCurrentWindow().toggleMaximize(),
+    },
+    {
+      key: "close",
+      label: "关闭",
+      icon: <CloseOutlined />,
+      onClick: () => void getCurrentWindow().close(),
+    },
+  ];
+
+  return (
+    <div className="app-titlebar">
+      <div
+        className="app-titlebar-drag-region"
+        data-tauri-drag-region
+        onDoubleClick={() => void getCurrentWindow().toggleMaximize()}
+      />
+      <div className="app-window-controls">
+        {windowControls.map((control) => (
+          <Button
+            key={control.key}
+            type="text"
+            aria-label={control.label}
+            title={control.label}
+            icon={control.icon}
+            className={
+              control.key === "close"
+                ? "app-window-control app-window-control-close"
+                : "app-window-control"
+            }
+            onClick={control.onClick}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const { t } = useTranslation();
@@ -89,59 +143,62 @@ export default function App() {
     items.find((i) => loc.pathname.startsWith(i.key))?.key ?? "/translate";
 
   return (
-    <Layout style={{ height: "100vh", background: token.colorBgLayout }}>
-      <Sider
-        width={200}
-        className="floating-sider"
-        style={{
-          background: token.colorBgContainer,
-        }}
-      >
-        <div
+    <div className="app-shell" style={{ background: token.colorBgLayout }}>
+      <AppTitleBar />
+      <Layout className="app-main-layout" style={{ background: "transparent" }}>
+        <Sider
+          width={200}
+          className="floating-sider"
           style={{
-            height: 60,
-            display: "flex",
-            alignItems: "center",
-            padding: "0 16px",
-            fontWeight: 800,
-            fontSize: 18,
-            color: token.colorTextHeading,
+            background: token.colorBgContainer,
           }}
         >
-          <img
-            src="/logo.png"
+          <div
             style={{
-              height: 28,
-              width: 28,
-              marginRight: 10,
-              borderRadius: 8,
-              boxShadow: "0 4px 10px rgba(99, 102, 241, 0.2)"
+              height: 60,
+              display: "flex",
+              alignItems: "center",
+              padding: "0 16px",
+              fontWeight: 800,
+              fontSize: 18,
+              color: token.colorTextHeading,
             }}
-            alt="logo"
+          >
+            <img
+              src="/logo.png"
+              style={{
+                height: 28,
+                width: 28,
+                marginRight: 10,
+                borderRadius: 8,
+                boxShadow: "0 4px 10px rgba(99, 102, 241, 0.2)"
+              }}
+              alt="logo"
+            />
+            <span className="brand-title" style={{ letterSpacing: "-0.5px", background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              {t("app.name")}
+            </span>
+          </div>
+          <Menu
+            mode="inline"
+            selectedKeys={[selected]}
+            items={items}
+            style={{ borderInlineEnd: "none", background: "transparent" }}
+            onClick={({ key }) => nav(key)}
           />
-          <span className="brand-title" style={{ letterSpacing: "-0.5px", background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            {t("app.name")}
-          </span>
-        </div>
-        <Menu
-          mode="inline"
-          selectedKeys={[selected]}
-          items={items}
-          style={{ borderInlineEnd: "none", background: "transparent" }}
-          onClick={({ key }) => nav(key)}
-        />
-      </Sider>
-      <Content
-        className="page-fade-in"
-        style={{
-          overflow: "auto",
-          padding: "12px 16px 12px 4px",
-          background: "transparent",
-        }}
-      >
-        <AppRoutes />
-      </Content>
-    </Layout>
+        </Sider>
+        <Content
+          className="page-fade-in"
+          style={{
+            overflow: "auto",
+            padding: "12px 16px 12px 4px",
+            background: "transparent",
+          }}
+        >
+          <AppRoutes />
+        </Content>
+      </Layout>
+    </div>
   );
 
 }
