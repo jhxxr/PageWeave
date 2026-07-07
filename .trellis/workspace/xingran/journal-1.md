@@ -256,3 +256,37 @@ Landed the `/params` page from an `Empty` placeholder into a real advanced-param
 
 - User: `pnpm tauri dev`, run Gate I from the plan (real PDF + glossary.csv, verify log panel argv).
 - Future: persist `advanced` across restarts (zustand persist or `app_settings`); `--config` toml for long `custom_system_prompt`; sidecar flag-drift detection.
+
+
+## Session 7: Beautify UI and design icon
+
+**Date**: 2026-07-07
+**Task**: Beautify UI and design icon
+**Branch**: `master`
+
+### Summary
+
+Refined PageWeave with custom brand icon assets, global Ant Design theme/style polish, redesigned sidebar branding, and upgraded core pages including Translate, Provider, Params, Tasks, and Settings. Verified the app build after the UI/icon changes.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7436974` | (see git log) |
+| `ecc6a4c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
