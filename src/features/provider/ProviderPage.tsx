@@ -76,10 +76,10 @@ export default function ProviderPage() {
     <Space direction="vertical" style={{ width: "100%" }} size={16}>
       <Card
         title={t("provider.title")}
-        variant="borderless"
+        className="glass-card"
         extra={
           <Space>
-            <Button icon={<PlusOutlined />} type="primary" onClick={onAdd}>
+            <Button icon={<PlusOutlined />} type="primary" onClick={onAdd} style={{ fontWeight: 600 }}>
               {t("provider.add")}
             </Button>
             <ExportButton />
@@ -93,22 +93,24 @@ export default function ProviderPage() {
             rowKey="id"
             dataSource={providers}
             pagination={false}
+            scroll={{ x: "max-content" }}
             columns={[
               {
                 title: t("provider.name"),
                 dataIndex: "name",
+                width: 200,
                 render: (v: string, r: ProviderRecord) => (
                   <Space>
-                    <span>{v}</span>
+                    <span style={{ fontWeight: 600 }}>{v}</span>
                     {r.is_applied && (
-                      <Tag color="gold">
+                      <Tag color="gold" style={{ borderRadius: 6, fontWeight: 500 }}>
                         <StarFilled /> {t("provider.isDefault")}
                       </Tag>
                     )}
                     {r.has_api_key ? (
-                      <Tag color="green">{t("provider.keySet")}</Tag>
+                      <Tag color="green" style={{ borderRadius: 6, fontWeight: 500 }}>{t("provider.keySet")}</Tag>
                     ) : (
-                      <Tag>{t("provider.keyNotSet")}</Tag>
+                      <Tag style={{ borderRadius: 6, fontWeight: 500 }}>{t("provider.keyNotSet")}</Tag>
                     )}
                   </Space>
                 ),
@@ -117,24 +119,41 @@ export default function ProviderPage() {
                 title: t("provider.category"),
                 dataIndex: "category",
                 width: 120,
+                render: (v: string) => <Tag style={{ borderRadius: 6, fontWeight: 500 }}>{v}</Tag>
               },
               {
-                title: t("provider.baseUrl"),
+                title: <span style={{ whiteSpace: "nowrap" }}>{t("provider.baseUrl")}</span>,
                 dataIndex: "base_url",
+                width: 260,
+                ellipsis: { showTitle: false },
                 render: (v: string) => (
-                  <span style={{ wordBreak: "break-all" }}>{v}</span>
+                  <Tooltip title={v}>
+                    <span
+                      style={{
+                        display: "block",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        fontFamily: "monospace",
+                        fontSize: 12,
+                      }}
+                    >
+                      {v}
+                    </span>
+                  </Tooltip>
                 ),
               },
               {
                 title: t("provider.model"),
                 dataIndex: "default_model",
                 width: 180,
+                render: (v: string) => <code style={{ fontSize: 12 }}>{v}</code>
               },
               {
                 title: t("provider.enabled"),
                 dataIndex: "is_enabled",
                 width: 80,
-                render: (v: boolean) => (v ? <Tag color="blue">✓</Tag> : "—"),
+                render: (v: boolean) => (v ? <Tag color="blue" style={{ borderRadius: 6, fontWeight: 500 }}>✓</Tag> : "—"),
               },
               {
                 title: t("common.ok"),
@@ -146,17 +165,18 @@ export default function ProviderPage() {
                       onClick={() => onSetDefault(r)}
                       disabled={r.is_applied}
                       icon={r.is_applied ? <StarFilled /> : <StarOutlined />}
+                      style={{ borderRadius: 6 }}
                     >
                       {t("provider.setDefault")}
                     </Button>
-                    <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(r)}>
+                    <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(r)} style={{ borderRadius: 6 }}>
                       {t("provider.edit")}
                     </Button>
                     <Popconfirm
                       title={t("provider.confirmDelete")}
                       onConfirm={() => onDelete(r)}
                     >
-                      <Button size="small" danger icon={<DeleteOutlined />}>
+                      <Button size="small" danger icon={<DeleteOutlined />} style={{ borderRadius: 6 }}>
                         {t("provider.delete")}
                       </Button>
                     </Popconfirm>
@@ -180,6 +200,7 @@ export default function ProviderPage() {
       />
     </Space>
   );
+
 }
 
 function ExportButton() {

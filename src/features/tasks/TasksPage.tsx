@@ -19,22 +19,22 @@ export default function TasksPage() {
   const latestLogs = st.logs.slice(-8);
 
   return (
-    <Card title={t("tasks.title")} variant="borderless">
+    <Card title={t("tasks.title")} className="glass-card">
       {!file ? (
         <Empty description={t("tasks.noCurrent")} />
       ) : (
         <Space direction="vertical" size="middle" style={{ width: "100%", maxWidth: 760 }}>
           <Space direction="vertical" size={4}>
-            <Text type="secondary">{t("tasks.current")}</Text>
-            <Space>
-              <FilePdfOutlined />
-              <Text style={{ wordBreak: "break-all" }}>{file.name}</Text>
-              <Tag color={statusColor[st.status]}>{t(`translate.status${cap(st.status)}`)}</Tag>
+            <Text type="secondary" style={{ fontSize: 12 }}>{t("tasks.current")}</Text>
+            <Space size="middle">
+              <FilePdfOutlined style={{ color: "#ef4444", fontSize: 16 }} />
+              <Text style={{ wordBreak: "break-all", fontWeight: 600 }}>{file.name}</Text>
+              <Tag color={statusColor[st.status]} style={{ borderRadius: 6, fontWeight: 500 }}>{t(`translate.status${cap(st.status)}`)}</Tag>
             </Space>
           </Space>
 
           <div>
-            <Text type="secondary">{t("translate.progress")}</Text>
+            <Text type="secondary" style={{ display: "block", fontSize: 12, marginBottom: 8 }}>{t("translate.progress")}</Text>
             <ProgressOverview
               percent={st.progress}
               status={st.status}
@@ -46,19 +46,19 @@ export default function TasksPage() {
           </div>
 
           {st.statusMessage && (
-            <Paragraph type={st.status === "error" ? "danger" : undefined}>
+            <Paragraph type={st.status === "error" ? "danger" : undefined} style={{ marginTop: 8 }}>
               <Text type="secondary">{t("tasks.statusMessage")}: </Text>
               {st.statusMessage}
             </Paragraph>
           )}
 
           {st.outputFiles.length > 0 && (
-            <Space direction="vertical" size={6}>
-              <Text type="secondary">{t("tasks.outputFiles")}</Text>
+            <Space direction="vertical" size={8}>
+              <Text type="secondary" style={{ fontSize: 12 }}>{t("tasks.outputFiles")}</Text>
               {st.outputFiles.map((f) => (
-                <Space key={f} wrap>
-                  <Text style={{ wordBreak: "break-all" }}>{f}</Text>
-                  <Button size="small" icon={<FilePdfOutlined />} onClick={() => openPath(f)}>
+                <Space key={f} wrap size="middle">
+                  <Text style={{ wordBreak: "break-all", fontWeight: 500 }}>{f.split(/[\\/]/).pop() ?? f}</Text>
+                  <Button size="small" icon={<FilePdfOutlined style={{ color: "#ef4444" }} />} onClick={() => openPath(f)}>
                     {t("translate.openFile")}
                   </Button>
                   <Tooltip title={f}>
@@ -72,8 +72,8 @@ export default function TasksPage() {
           )}
 
           {latestLogs.length > 0 && (
-            <Space direction="vertical" size={6} style={{ width: "100%" }}>
-              <Text type="secondary">{t("tasks.latestLog")}</Text>
+            <Space direction="vertical" size={8} style={{ width: "100%" }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>{t("tasks.latestLog")}</Text>
               <LogStream logs={latestLogs} emptyText={t("translate.logEmpty")} height={180} />
             </Space>
           )}
@@ -81,4 +81,5 @@ export default function TasksPage() {
       )}
     </Card>
   );
+
 }

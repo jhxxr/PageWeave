@@ -228,27 +228,19 @@ export default function TranslatePage() {
         />
       )}
 
-      <Card title={t("translate.title")} variant="borderless">
+      <Card title={t("translate.title")} className="glass-card">
         <div
           onDragOver={(e) => e.preventDefault()}
           onClick={pickFiles}
-          style={{
-            border: `2px dashed ${
-              st.files.length ? "#1677ff" : "#d9d9d9"
-            }`,
-            borderRadius: 8,
-            padding: 24,
-            textAlign: "center",
-            cursor: "pointer",
-            marginBottom: 16,
-          }}
+          className={`drag-drop-zone ${st.files.length ? "has-files" : ""}`}
+          style={{ marginBottom: 16 }}
         >
-          <InboxOutlined style={{ fontSize: 32, color: "#1677ff" }} />
-          <div style={{ marginTop: 8 }}>
-            <Text>{t("translate.dropHere")}</Text>
+          <InboxOutlined className="drag-drop-icon" />
+          <div style={{ marginTop: 12 }}>
+            <Text strong style={{ fontSize: 15 }}>{t("translate.dropHere")}</Text>
           </div>
           <div style={{ marginTop: 4 }}>
-            <Text type="secondary">{t("translate.onePdfHint")}</Text>
+            <Text type="secondary" style={{ fontSize: 13 }}>{t("translate.onePdfHint")}</Text>
           </div>
         </div>
 
@@ -266,8 +258,8 @@ export default function TranslatePage() {
               dataIndex: "name",
               render: (v: string) => (
                 <Space>
-                  <FilePdfOutlined />
-                  <Text style={{ wordBreak: "break-all" }}>{v}</Text>
+                  <FilePdfOutlined style={{ color: "#ef4444" }} />
+                  <Text style={{ wordBreak: "break-all", fontWeight: 500 }}>{v}</Text>
                 </Space>
               ),
             },
@@ -282,7 +274,7 @@ export default function TranslatePage() {
               dataIndex: "status",
               width: 100,
               render: (v: string) => (
-                <Tag color={statusColor[v]}>
+                <Tag color={statusColor[v]} style={{ borderRadius: 6, fontWeight: 500 }}>
                   {t(`translate.status${cap(v)}`)}
                 </Tag>
               ),
@@ -305,31 +297,33 @@ export default function TranslatePage() {
         />
       </Card>
 
-      <Card variant="borderless">
-        <Space wrap size="middle">
+      <Card className="glass-card">
+        <Space wrap size="large">
           <span>
-            <Text type="secondary">{t("translate.langIn")}</Text>
+            <Text type="secondary" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>{t("translate.langIn")}</Text>
             <Select
-              style={{ width: 140, marginLeft: 8 }}
+              style={{ width: 140 }}
               value={st.langIn}
               onChange={st.setLangIn}
               options={LANGUAGES.map((l) => ({ value: l.code, label: l.label }))}
             />
           </span>
-            <Text type="secondary">→</Text>
+          <span style={{ display: "inline-flex", alignSelf: "center", paddingTop: 16 }}>
+            <Text type="secondary" style={{ fontSize: 16 }}>→</Text>
+          </span>
           <span>
-            <Text type="secondary">{t("translate.langOut")}</Text>
+            <Text type="secondary" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>{t("translate.langOut")}</Text>
             <Select
-              style={{ width: 140, marginLeft: 8 }}
+              style={{ width: 140 }}
               value={st.langOut}
               onChange={st.setLangOut}
               options={LANGUAGES.map((l) => ({ value: l.code, label: l.label }))}
             />
           </span>
           <span>
-            <Text type="secondary">{t("translate.provider")}</Text>
+            <Text type="secondary" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>{t("translate.provider")}</Text>
             <Select
-              style={{ width: 200, marginLeft: 8 }}
+              style={{ width: 200 }}
               value={st.providerId || undefined}
               placeholder={t("translate.noProvider")}
               onChange={(id) => {
@@ -344,9 +338,9 @@ export default function TranslatePage() {
             />
           </span>
           <span>
-            <Text type="secondary">{t("translate.model")}</Text>
+            <Text type="secondary" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>{t("translate.model")}</Text>
             <AutoComplete
-              style={{ width: 220, marginLeft: 8 }}
+              style={{ width: 220 }}
               value={st.model}
               onChange={st.setModel}
               options={(selectedProvider?.models ?? []).map((m) => ({
@@ -356,9 +350,8 @@ export default function TranslatePage() {
             />
           </span>
           <span>
-            <Text type="secondary">{t("translate.outputMode")}</Text>
+            <Text type="secondary" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>{t("translate.outputMode")}</Text>
             <Radio.Group
-              style={{ marginLeft: 8 }}
               value={st.outputMode}
               onChange={(e) => st.setOutputMode(e.target.value)}
             >
@@ -368,12 +361,12 @@ export default function TranslatePage() {
             </Radio.Group>
           </span>
           <span>
-            <Text type="secondary">{t("translate.qps")}</Text>
+            <Text type="secondary" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>{t("translate.qps")}</Text>
             <Input
               type="number"
               min={1}
               max={32}
-              style={{ width: 80, marginLeft: 8 }}
+              style={{ width: 80 }}
               value={st.qps}
               onChange={(e) => st.setQps(Number(e.target.value) || 1)}
             />
@@ -381,27 +374,34 @@ export default function TranslatePage() {
         </Space>
       </Card>
 
-      <Card variant="borderless">
-        <Space style={{ width: "100%" }} direction="vertical">
-          <Space>
-            <Text type="secondary">{t("translate.outputDir")}</Text>
-            <Input
-              style={{ width: 480 }}
-              value={st.outputDir}
-              onChange={(e) => st.setOutputDir(e.target.value)}
-              placeholder={t("translate.selectOutputDir")}
-            />
-            <Button icon={<FolderOpenOutlined />} onClick={pickOutputDir}>
+      <Card className="glass-card">
+        <Space style={{ width: "100%" }} direction="vertical" size={16}>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ flex: 1, minWidth: 280 }}>
+              <Text type="secondary" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>{t("translate.outputDir")}</Text>
+              <Input
+                style={{ width: "100%" }}
+                value={st.outputDir}
+                onChange={(e) => st.setOutputDir(e.target.value)}
+                placeholder={t("translate.selectOutputDir")}
+              />
+            </span>
+            <Button
+              icon={<FolderOpenOutlined />}
+              onClick={pickOutputDir}
+              style={{ marginTop: 20 }}
+            >
               {t("translate.selectOutputDir")}
             </Button>
-          </Space>
-          <Space>
+          </div>
+          <Space size="middle">
             <Button
               type="primary"
               icon={<PlayCircleOutlined />}
               disabled={!canStart || busy}
               loading={busy}
               onClick={start}
+              style={{ height: 38, paddingInline: 24, fontWeight: 600 }}
             >
               {t("translate.start")}
             </Button>
@@ -410,13 +410,14 @@ export default function TranslatePage() {
               icon={<StopOutlined />}
               disabled={st.status !== "running"}
               onClick={cancel}
+              style={{ height: 38, paddingInline: 20 }}
             >
               {t("translate.cancel")}
             </Button>
             <Tooltip title={t("params.resetHint")}>
               <Tag
                 color={advancedCount ? "blue" : "default"}
-                style={{ cursor: "pointer", marginInlineStart: 8 }}
+                style={{ cursor: "pointer", marginInlineStart: 8, padding: "4px 8px", borderRadius: 6, fontWeight: 500 }}
                 onClick={() => nav("/params")}
               >
                 {t("params.appliedCount", { count: advancedCount })}
@@ -428,10 +429,10 @@ export default function TranslatePage() {
 
       <Card
         title={t("translate.progress")}
-        variant="borderless"
+        className="glass-card"
         extra={
           st.status !== "idle" && (
-            <Tag color={statusColor[st.status]}>
+            <Tag color={statusColor[st.status]} style={{ borderRadius: 6, fontWeight: 550 }}>
               {t(`translate.status${cap(st.status)}`)}
             </Tag>
           )
@@ -446,17 +447,17 @@ export default function TranslatePage() {
           latestLabel={t("tasks.latestLog")}
         />
         {st.statusMessage && (
-          <Paragraph type={st.status === "error" ? "danger" : undefined}>
+          <Paragraph type={st.status === "error" ? "danger" : undefined} style={{ marginTop: 12, marginBottom: 0 }}>
             {st.statusMessage}
           </Paragraph>
         )}
         {st.outputFiles.length > 0 && (
-          <Space>
+          <Space style={{ marginTop: 12 }}>
             {st.outputFiles.map((f) => (
               <Space key={f}>
                 <Button
                   size="small"
-                  icon={<FilePdfOutlined />}
+                  icon={<FilePdfOutlined style={{ color: "#ef4444" }} />}
                   onClick={() => openPath(f)}
                 >
                   {t("translate.openFile")}
@@ -494,7 +495,7 @@ export default function TranslatePage() {
             </Tooltip>
           </Space>
         }
-        variant="borderless"
+        className="glass-card"
       >
         <LogStream
           logs={st.logs}
@@ -504,6 +505,7 @@ export default function TranslatePage() {
       </Card>
     </Space>
   );
+
 }
 
 async function createFileItem(path: string): Promise<FileItem> {

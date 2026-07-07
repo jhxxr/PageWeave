@@ -48,27 +48,33 @@ function Row({
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 12,
-        margin: "6px 0",
+        gap: 16,
+        margin: "10px 0",
         flexWrap: "wrap",
+        paddingBottom: 10,
+        borderBottom: "1px dashed rgba(100, 116, 139, 0.08)",
       }}
     >
       <label
         htmlFor={htmlFor}
         style={{
-          minWidth: 180,
-          color: "rgba(0,0,0,0.65)",
+          minWidth: 220,
+          display: "block",
         }}
       >
-        <Space size={4}>
-          <Text type="secondary">{label}</Text>
+        <Space size={6}>
+          <Text style={{ fontWeight: 550 }}>{label}</Text>
           {extra}
         </Space>
         {help && (
-          <div style={{ fontSize: 12, color: "rgba(0,0,0,0.45)" }}>{help}</div>
+          <div style={{ marginTop: 2 }}>
+            <Text type="secondary" style={{ fontSize: 12, lineHeight: "1.4", display: "block" }}>
+              {help}
+            </Text>
+          </div>
         )}
       </label>
-      <div style={{ flex: 1, minWidth: 220 }}>{children}</div>
+      <div style={{ flex: 1, minWidth: 240 }}>{children}</div>
     </div>
   );
 }
@@ -102,7 +108,7 @@ export default function ParamsPage() {
   return (
     <Card
       title={t("params.title")}
-      variant="borderless"
+      className="glass-card"
       extra={
         <Space>
           <Tooltip title={t("params.resetHint")}>

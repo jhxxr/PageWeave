@@ -128,184 +128,211 @@ export default function SettingsPage() {
     }
   }
 
+  const rowStyle: React.CSSProperties = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingBottom: 12,
+    borderBottom: "1px dashed rgba(100, 116, 139, 0.08)",
+    gap: 16,
+    flexWrap: "wrap",
+  };
+
   return (
     <>
       {contextHolder}
-      <Card title={t("settings.title")} variant="borderless">
-      <Space direction="vertical" size="middle" style={{ width: 520 }}>
-        <div>
-          <Text type="secondary">{t("settings.theme")}</Text>
-          <Select
-            style={{ width: 200, marginLeft: 12 }}
-            value={cur.theme as "light" | "dark" | "system"}
-            onChange={(v: "light" | "dark" | "system") => s.applyTheme(v)}
-            options={[
-              { value: "light", label: t("settings.themeLight") },
-              { value: "dark", label: t("settings.themeDark") },
-              { value: "system", label: t("settings.themeSystem") },
-            ]}
-          />
-        </div>
-        <div>
-          <Text type="secondary">{t("settings.language")}</Text>
-          <Select
-            style={{ width: 200, marginLeft: 12 }}
-            value={cur.language as "zh" | "en"}
-            onChange={(v: "zh" | "en") => s.setLanguage(v)}
-            options={[
-              { value: "zh", label: "中文" },
-              { value: "en", label: "English" },
-            ]}
-          />
-        </div>
-        <div>
-          <Text type="secondary">{t("settings.defaultOutputDir")}</Text>
-          <Input
-            style={{ width: 360, marginLeft: 12 }}
-            value={cur.default_output_dir}
-            onChange={(e) => s.patch({ default_output_dir: e.target.value })}
-            placeholder={t("translate.selectOutputDir")}
-          />
-          <Button icon={<FolderOpenOutlined />} onClick={pickOutputDir} style={{ marginLeft: 8 }} />
-        </div>
-        <div>
-          <Text type="secondary">{t("settings.defaultLangIn")}</Text>
-          <Select
-            style={{ width: 200, marginLeft: 12 }}
-            value={cur.default_lang_in}
-            onChange={(v) => s.patch({ default_lang_in: v })}
-            options={LANGUAGES.map((l) => ({ value: l.code, label: l.label }))}
-          />
-        </div>
-        <div>
-          <Text type="secondary">{t("settings.defaultLangOut")}</Text>
-          <Select
-            style={{ width: 200, marginLeft: 12 }}
-            value={cur.default_lang_out}
-            onChange={(v) => s.patch({ default_lang_out: v })}
-            options={LANGUAGES.map((l) => ({ value: l.code, label: l.label }))}
-          />
-        </div>
-        <div>
-          <Text type="secondary">{t("settings.defaultProvider")}</Text>
-          <Select
-            style={{ width: 320, marginLeft: 12 }}
-            value={cur.default_provider_id || undefined}
-            onChange={(v) => s.patch({ default_provider_id: v })}
-            options={providers.map((p) => ({ value: p.id, label: p.name }))}
-            allowClear
-          />
-        </div>
-        <div>
-          <Text type="secondary">{t("settings.logRetention")}</Text>
-          <InputNumber
-            min={1}
-            max={365}
-            style={{ width: 120, marginLeft: 12 }}
-            value={cur.log_retention_days}
-            onChange={(v) => s.patch({ log_retention_days: Number(v) || 7 })}
-          />
-        </div>
+      <Card title={t("settings.title")} className="glass-card">
+        <Space direction="vertical" size="large" style={{ width: "100%", maxWidth: 680 }}>
+          
+          <div style={rowStyle}>
+            <Text style={{ fontWeight: 600 }}>{t("settings.theme")}</Text>
+            <Select
+              style={{ width: 240 }}
+              value={cur.theme as "light" | "dark" | "system"}
+              onChange={(v: "light" | "dark" | "system") => s.applyTheme(v)}
+              options={[
+                { value: "light", label: t("settings.themeLight") },
+                { value: "dark", label: t("settings.themeDark") },
+                { value: "system", label: t("settings.themeSystem") },
+              ]}
+            />
+          </div>
 
-        <Divider />
-        <div>
-          <Text strong>{t("settings.offlineAssets")}</Text>
-          <Alert
-            style={{ marginTop: 8, marginBottom: 12 }}
-            type={offlineInfo?.installed ? "success" : "info"}
-            showIcon
-            message={
-              offlineInfo?.installed
-                ? t("settings.offlineAssetsReady")
-                : t("settings.offlineAssetsMissing")
-            }
-            description={
-              offlineInfo
-                ? `${t("settings.cacheDir")}: ${offlineInfo.cache_dir} · ${formatBytes(
-                    offlineInfo.size_bytes,
-                  )}`
-                : t("settings.loading")
-            }
-          />
-          <Space wrap>
-            <Button
-              icon={<CloudDownloadOutlined />}
-              loading={installingOnline}
-              onClick={installFromRelease}
-            >
-              {t("settings.installFromRelease")}
-            </Button>
-            <Button
-              icon={<InboxOutlined />}
-              loading={installingLocal}
-              onClick={installFromLocalFile}
-            >
-              {t("settings.installFromLocal")}
-            </Button>
-            <Button onClick={refreshOfflineAssetsInfo}>{t("settings.refresh")}</Button>
-          </Space>
-        </div>
+          <div style={rowStyle}>
+            <Text style={{ fontWeight: 600 }}>{t("settings.language")}</Text>
+            <Select
+              style={{ width: 240 }}
+              value={cur.language as "zh" | "en"}
+              onChange={(v: "zh" | "en") => s.setLanguage(v)}
+              options={[
+                { value: "zh", label: "中文" },
+                { value: "en", label: "English" },
+              ]}
+            />
+          </div>
 
-        <Divider />
-        <div>
-          <Text strong>{t("settings.about")}</Text>
-          <Paragraph style={{ marginTop: 8 }}>
-            <div>
-              {t("settings.version")}: {updates.appVersion || t("settings.loading")}
-            </div>
+          <div style={rowStyle}>
+            <Text style={{ fontWeight: 600 }}>{t("settings.defaultOutputDir")}</Text>
+            <Space.Compact style={{ width: 380 }}>
+              <Input
+                style={{ width: "100%" }}
+                value={cur.default_output_dir}
+                onChange={(e) => s.patch({ default_output_dir: e.target.value })}
+                placeholder={t("translate.selectOutputDir")}
+              />
+              <Button icon={<FolderOpenOutlined />} onClick={pickOutputDir} />
+            </Space.Compact>
+          </div>
+
+          <div style={rowStyle}>
+            <Text style={{ fontWeight: 600 }}>{t("settings.defaultLangIn")}</Text>
+            <Select
+              style={{ width: 240 }}
+              value={cur.default_lang_in}
+              onChange={(v) => s.patch({ default_lang_in: v })}
+              options={LANGUAGES.map((l) => ({ value: l.code, label: l.label }))}
+            />
+          </div>
+
+          <div style={rowStyle}>
+            <Text style={{ fontWeight: 600 }}>{t("settings.defaultLangOut")}</Text>
+            <Select
+              style={{ width: 240 }}
+              value={cur.default_lang_out}
+              onChange={(v) => s.patch({ default_lang_out: v })}
+              options={LANGUAGES.map((l) => ({ value: l.code, label: l.label }))}
+            />
+          </div>
+
+          <div style={rowStyle}>
+            <Text style={{ fontWeight: 600 }}>{t("settings.defaultProvider")}</Text>
+            <Select
+              style={{ width: 240 }}
+              value={cur.default_provider_id || undefined}
+              onChange={(v) => s.patch({ default_provider_id: v })}
+              options={providers.map((p) => ({ value: p.id, label: p.name }))}
+              allowClear
+            />
+          </div>
+
+          <div style={rowStyle}>
+            <Text style={{ fontWeight: 600 }}>{t("settings.logRetention")}</Text>
+            <InputNumber
+              min={1}
+              max={365}
+              style={{ width: 120 }}
+              value={cur.log_retention_days}
+              onChange={(v) => s.patch({ log_retention_days: Number(v) || 7 })}
+            />
+          </div>
+
+          <div style={{ marginTop: 8 }}>
+            <Text strong style={{ fontSize: 16, display: "block", marginBottom: 12 }}>
+              {t("settings.offlineAssets")}
+            </Text>
             <Alert
-              style={{ marginTop: 8, marginBottom: 12 }}
-              type={updateAlertType(updates.status)}
+              style={{ marginBottom: 16, borderRadius: 10 }}
+              type={offlineInfo?.installed ? "success" : "info"}
               showIcon
-              message={updateStatusText(t, updates.status, updates.updateVersion)}
+              message={
+                offlineInfo?.installed
+                  ? t("settings.offlineAssetsReady")
+                  : t("settings.offlineAssetsMissing")
+              }
               description={
-                updates.error ||
-                (updates.lastCheckedAt
-                  ? `${t("settings.lastChecked")}: ${new Date(
-                      updates.lastCheckedAt,
-                    ).toLocaleString()}`
-                  : undefined)
+                offlineInfo
+                  ? `${t("settings.cacheDir")}: ${offlineInfo.cache_dir} · ${formatBytes(
+                      offlineInfo.size_bytes,
+                    )}`
+                  : t("settings.loading")
               }
             />
-            {updates.status === "downloading" && (
-              <Progress
-                percent={downloadPercent(updates.downloadedBytes, updates.contentLength)}
-                size="small"
-                style={{ marginBottom: 12 }}
-              />
-            )}
-            <Space wrap style={{ marginBottom: 12 }}>
+            <Space wrap size="middle">
               <Button
-                icon={<SyncOutlined />}
-                loading={updates.status === "checking" || updates.status === "downloading"}
-                onClick={checkForUpdates}
+                type="primary"
+                icon={<CloudDownloadOutlined />}
+                loading={installingOnline}
+                onClick={installFromRelease}
+                style={{ fontWeight: 550 }}
               >
-                {t("settings.checkUpdates")}
+                {t("settings.installFromRelease")}
               </Button>
-              {(updates.status === "readyToInstall" || updates.status === "installing") && (
-                <Button
-                  type="primary"
-                  icon={<ReloadOutlined />}
-                  loading={updates.status === "installing"}
-                  onClick={installUpdate}
-                >
-                  {t("settings.installAndRestart")}
-                </Button>
-              )}
+              <Button
+                icon={<InboxOutlined />}
+                loading={installingLocal}
+                onClick={installFromLocalFile}
+              >
+                {t("settings.installFromLocal")}
+              </Button>
+              <Button onClick={refreshOfflineAssetsInfo}>{t("settings.refresh")}</Button>
             </Space>
-            <div>
-              {t("settings.license")}: {t("settings.licenseNote")}
-            </div>
-            <div style={{ marginTop: 8 }}>
-              <Text type="secondary">{t("settings.deps")}</Text>
-            </div>
-            <div>{t("settings.depsBody")}</div>
-          </Paragraph>
-        </div>
-      </Space>
+          </div>
+
+          <Divider style={{ marginBlock: 12 }} />
+
+          <div>
+            <Text strong style={{ fontSize: 16, display: "block", marginBottom: 12 }}>
+              {t("settings.about")}
+            </Text>
+            <Paragraph>
+              <div style={{ marginBottom: 8, fontWeight: 500 }}>
+                {t("settings.version")}: {updates.appVersion || t("settings.loading")}
+              </div>
+              <Alert
+                style={{ marginBottom: 16, borderRadius: 10 }}
+                type={updateAlertType(updates.status)}
+                showIcon
+                message={updateStatusText(t, updates.status, updates.updateVersion)}
+                description={
+                  updates.error ||
+                  (updates.lastCheckedAt
+                    ? `${t("settings.lastChecked")}: ${new Date(
+                        updates.lastCheckedAt,
+                      ).toLocaleString()}`
+                    : undefined)
+                }
+              />
+              {updates.status === "downloading" && (
+                <Progress
+                  percent={downloadPercent(updates.downloadedBytes, updates.contentLength)}
+                  size="small"
+                  style={{ marginBottom: 16 }}
+                />
+              )}
+              <Space wrap style={{ marginBottom: 16 }}>
+                <Button
+                  icon={<SyncOutlined />}
+                  loading={updates.status === "checking" || updates.status === "downloading"}
+                  onClick={checkForUpdates}
+                >
+                  {t("settings.checkUpdates")}
+                </Button>
+                {(updates.status === "readyToInstall" || updates.status === "installing") && (
+                  <Button
+                    type="primary"
+                    icon={<ReloadOutlined />}
+                    loading={updates.status === "installing"}
+                    onClick={installUpdate}
+                    style={{ fontWeight: 550 }}
+                  >
+                    {t("settings.installAndRestart")}
+                  </Button>
+                )}
+              </Space>
+              <div style={{ marginTop: 8 }}>
+                {t("settings.license")}: {t("settings.licenseNote")}
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>{t("settings.deps")}</Text>
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.85 }}>{t("settings.depsBody")}</div>
+            </Paragraph>
+          </div>
+        </Space>
       </Card>
     </>
   );
+
 }
 
 function formatBytes(bytes: number) {

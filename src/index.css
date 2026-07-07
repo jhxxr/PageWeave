@@ -1,0 +1,197 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+
+/* Base Styles & Typography */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6, .brand-title {
+  font-family: 'Outfit', sans-serif !important;
+}
+
+/* Page transitions */
+.page-fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.2);
+  border-radius: 9999px;
+  transition: all 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.4);
+}
+
+/* Glassmorphism Styles */
+.glass-card {
+  background: rgba(255, 255, 255, 0.7) !important;
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.03) !important;
+  border-radius: 16px !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.dark-theme .glass-card {
+  background: rgba(30, 41, 59, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2) !important;
+}
+
+.glass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 40px rgba(99, 102, 241, 0.08) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+}
+
+.dark-theme .glass-card:hover {
+  box-shadow: 0 10px 40px rgba(129, 140, 248, 0.15) !important;
+  border-color: rgba(129, 140, 248, 0.3) !important;
+}
+
+/* Floating Sider styling */
+.floating-sider {
+  margin: 12px;
+  border-radius: 16px !important;
+  border: 1px solid rgba(0, 0, 0, 0.05) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02) !important;
+  overflow: hidden;
+  transition: all 0.3s ease !important;
+}
+
+.dark-theme .floating-sider {
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Drag & Drop Area */
+.drag-drop-zone {
+  position: relative;
+  border: 2px dashed rgba(99, 102, 241, 0.3) !important;
+  background: rgba(99, 102, 241, 0.02) !important;
+  border-radius: 16px !important;
+  padding: 32px 24px !important;
+  text-align: center;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.drag-drop-zone:hover {
+  border-color: #6366f1 !important;
+  background: rgba(99, 102, 241, 0.05) !important;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
+  transform: scale(1.005);
+}
+
+.drag-drop-zone.has-files {
+  border-color: #10b981 !important;
+  background: rgba(16, 185, 129, 0.02) !important;
+}
+
+.drag-drop-zone.has-files:hover {
+  border-color: #10b981 !important;
+  background: rgba(16, 185, 129, 0.05) !important;
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+}
+
+.drag-drop-icon {
+  font-size: 40px !important;
+  color: #6366f1;
+  transition: transform 0.3s ease;
+}
+
+.drag-drop-zone:hover .drag-drop-icon {
+  transform: translateY(-4px);
+}
+
+/* Pulse keyframes for active components */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+}
+
+/* Dark Terminal Console Style */
+.terminal-console {
+  background: #0f172a !important;
+  border: 1px solid #1e293b !important;
+  border-radius: 12px !important;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace !important;
+  color: #38bdf8 !important;
+  padding: 16px !important;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5) !important;
+  line-height: 1.6 !important;
+}
+
+.terminal-log-line {
+  margin-bottom: 6px;
+  word-break: break-all;
+  opacity: 0.9;
+  transition: opacity 0.2s ease;
+}
+
+.terminal-log-line:hover {
+  opacity: 1;
+  color: #f1f5f9;
+}
+
+.terminal-log-line.stderr {
+  color: #f87171 !important;
+}
+
+.terminal-log-line.stdout {
+  color: #34d399 !important;
+}
+
+/* Navigation items hover effect */
+.ant-menu-item {
+  border-radius: 8px !important;
+  margin: 4px 8px !important;
+  width: calc(100% - 16px) !important;
+  transition: all 0.2s ease !important;
+}
+
+.ant-menu-item-selected {
+  background-color: rgba(99, 102, 241, 0.08) !important;
+  color: #6366f1 !important;
+  font-weight: 600 !important;
+}
+
+.dark-theme .ant-menu-item-selected {
+  background-color: rgba(129, 140, 248, 0.15) !important;
+  color: #818cf8 !important;
+}

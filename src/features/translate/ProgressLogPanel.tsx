@@ -246,10 +246,10 @@ const overviewGridStyle: CSSProperties = {
 
 const factStyle: CSSProperties = {
   minWidth: 0,
-  padding: "10px 12px",
-  border: "1px solid rgba(5,5,5,0.08)",
-  borderRadius: 6,
-  background: "rgba(5,5,5,0.02)",
+  padding: "10px 14px",
+  border: "1px solid rgba(99, 102, 241, 0.15)",
+  borderRadius: 10,
+  background: "rgba(99, 102, 241, 0.02)",
 };
 
 const factValueStyle: CSSProperties = {
@@ -258,13 +258,17 @@ const factValueStyle: CSSProperties = {
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
+  fontWeight: 600,
 };
 
 const logBoxStyle: CSSProperties = {
   overflow: "auto",
-  background: "rgba(5,5,5,0.03)",
-  padding: 8,
-  borderRadius: 6,
+  background: "#0f172a",
+  padding: "12px 16px",
+  borderRadius: 12,
+  border: "1px solid #1e293b",
+  boxShadow: "inset 0 4px 12px rgba(0, 0, 0, 0.4)",
+  fontFamily: "'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace",
 };
 
 const logRowStyle: CSSProperties = {
@@ -272,15 +276,16 @@ const logRowStyle: CSSProperties = {
   gridTemplateColumns: "10px minmax(0, 1fr) auto",
   alignItems: "center",
   gap: 8,
-  minHeight: 30,
-  padding: "4px 6px",
-  borderBottom: "1px solid rgba(5,5,5,0.06)",
+  minHeight: 28,
+  padding: "6px 8px",
+  borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
 };
 
 const logDotStyle: CSSProperties = {
   width: 6,
   height: 6,
   borderRadius: "50%",
+  boxShadow: "0 0 8px currentColor",
 };
 
 const logTextStyle: CSSProperties = {
@@ -290,10 +295,13 @@ const logTextStyle: CSSProperties = {
   textOverflow: "ellipsis",
   verticalAlign: "bottom",
   whiteSpace: "nowrap",
+  color: "#f1f5f9",
 };
 
 const detailStyle: CSSProperties = {
   marginLeft: 8,
   fontSize: 12,
   whiteSpace: "nowrap",
+  color: "#94a3b8",
 };
+

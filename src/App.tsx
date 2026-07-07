@@ -89,39 +89,59 @@ export default function App() {
     items.find((i) => loc.pathname.startsWith(i.key))?.key ?? "/translate";
 
   return (
-    <Layout style={{ height: "100vh" }}>
+    <Layout style={{ height: "100vh", background: token.colorBgLayout }}>
       <Sider
-        width={184}
+        width={200}
+        className="floating-sider"
         style={{
           background: token.colorBgContainer,
-          borderRight: `1px solid ${token.colorBorderSecondary}`,
         }}
       >
         <div
           style={{
-            height: 48,
+            height: 60,
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            fontWeight: 700,
+            padding: "0 16px",
+            fontWeight: 800,
             fontSize: 18,
-            color: token.colorPrimary,
+            color: token.colorTextHeading,
           }}
         >
-          {t("app.name")}
+          <img
+            src="/logo.png"
+            style={{
+              height: 28,
+              width: 28,
+              marginRight: 10,
+              borderRadius: 8,
+              boxShadow: "0 4px 10px rgba(99, 102, 241, 0.2)"
+            }}
+            alt="logo"
+          />
+          <span className="brand-title" style={{ letterSpacing: "-0.5px", background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            {t("app.name")}
+          </span>
         </div>
         <Menu
           mode="inline"
           selectedKeys={[selected]}
           items={items}
+          style={{ borderInlineEnd: "none", background: "transparent" }}
           onClick={({ key }) => nav(key)}
         />
       </Sider>
       <Content
-        style={{ overflow: "auto", padding: 20, background: token.colorBgLayout }}
+        className="page-fade-in"
+        style={{
+          overflow: "auto",
+          padding: "12px 16px 12px 4px",
+          background: "transparent",
+        }}
       >
         <AppRoutes />
       </Content>
     </Layout>
   );
+
 }
