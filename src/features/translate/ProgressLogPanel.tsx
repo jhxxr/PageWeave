@@ -1,5 +1,5 @@
-import { useMemo, type CSSProperties, type RefObject } from "react";
-import { Empty, Progress, Space, Tag, Typography } from "antd";
+import { type CSSProperties, type RefObject } from "react";
+import { Empty, Progress, Space, Typography } from "antd";
 import type { ProgressProps } from "antd";
 import type { LogLine, TaskStatus } from "../../stores/translateStore";
 
@@ -13,16 +13,6 @@ export const statusColor: Record<string, string> = {
   cancelled: "warning",
 };
 
-export function latestReadableLog(logs: LogLine[]): string | undefined {
-  const displayLogs = compactProgressLogs(logs);
-  for (let i = displayLogs.length - 1; i >= 0; i -= 1) {
-    const parsed = displayLogs[i].parsed;
-    if (!parsed.stage) return parsed.text;
-    return parsed.stage;
-  }
-  return undefined;
-}
-
 interface ProgressOverviewProps {
   percent: number;
   status: TaskStatus;
@@ -30,6 +20,7 @@ interface ProgressOverviewProps {
   latestLog?: string;
   stageLabel: string;
   latestLabel: string;
+  showLatest?: boolean;
 }
 
 export function ProgressOverview({
@@ -39,8 +30,8 @@ export function ProgressOverview({
   latestLog,
   stageLabel,
   latestLabel,
+  showLatest = true,
 }: ProgressOverviewProps) {
-  const readableLatest = latestLog ? summarizeLogText(latestLog) : "";
   return (
     <Space direction="vertical" size={12} style={{ width: "100%" }}>
       <Progress
@@ -50,7 +41,7 @@ export function ProgressOverview({
       />
       <div style={overviewGridStyle}>
         <ProgressFact label={stageLabel} value={stage || "-"} />
-        <ProgressFact label={latestLabel} value={readableLatest || "-"} />
+        {showLatest && <ProgressFact label={latestLabel} value={latestLog || "-"} />}
       </div>
     </Space>
   );
@@ -80,8 +71,6 @@ interface LogStreamProps {
 }
 
 export function LogStream({ logs, emptyText, height = 240, containerRef }: LogStreamProps) {
-  const displayLogs = useMemo(() => compactProgressLogs(logs), [logs]);
-
   if (logs.length === 0) {
     return (
       <div
@@ -95,122 +84,24 @@ export function LogStream({ logs, emptyText, height = 240, containerRef }: LogSt
 
   return (
     <div ref={containerRef} style={{ ...logBoxStyle, height }}>
-      {displayLogs.map((line) => (
+      {logs.map((line) => (
         <LogRow key={line.id} line={line} />
       ))}
     </div>
   );
 }
 
-function LogRow({ line }: { line: DisplayLogLine }) {
-  const parsed = line.parsed;
+function LogRow({ line }: { line: LogLine }) {
   const tone = line.stream === "stderr" ? "#d46b08" : "#1677ff";
 
   return (
     <div style={logRowStyle}>
       <span style={{ ...logDotStyle, background: tone }} />
       <div style={{ minWidth: 0 }}>
-        <Text strong={!!parsed.stage} style={logTextStyle}>
-          {parsed.stage || parsed.text}
-        </Text>
-        {parsed.detail && (
-          <Text type="secondary" style={detailStyle}>
-            {parsed.detail}
-          </Text>
-        )}
+        <Text style={logTextStyle}>{line.text}</Text>
       </div>
-      {parsed.percent != null && (
-        <Tag color={parsed.percent >= 100 ? "success" : "processing"} style={{ marginRight: 0 }}>
-          {parsed.percent}%
-        </Tag>
-      )}
     </div>
   );
-}
-
-interface ParsedLogText {
-  text: string;
-  stage: string;
-  detail: string;
-  percent: number | undefined;
-  current: number | undefined;
-  total: number | undefined;
-}
-
-interface DisplayLogLine extends LogLine {
-  parsed: ParsedLogText;
-}
-
-function compactProgressLogs(logs: LogLine[]): DisplayLogLine[] {
-  const rows: DisplayLogLine[] = [];
-  const progressIndexByStage = new Map<string, number>();
-
-  for (const line of logs) {
-    const parsed = parseLogText(line.text);
-    if (isProgressFrame(parsed)) continue;
-    if (mergeContinuationLog(rows, line, parsed)) continue;
-    const key = progressLogKey(parsed);
-    if (!key) {
-      rows.push({ ...line, parsed });
-      continue;
-    }
-
-    const existingIndex = progressIndexByStage.get(key);
-    if (existingIndex == null) {
-      progressIndexByStage.set(key, rows.length);
-      rows.push({ ...line, parsed });
-      continue;
-    }
-
-    const existing = rows[existingIndex];
-    if (isCompleteProgress(existing.parsed)) {
-      if (parsed.percent != null && parsed.percent < 100) {
-        progressIndexByStage.set(key, rows.length);
-        rows.push({ ...line, parsed });
-      }
-      continue;
-    }
-
-    rows[existingIndex] = {
-      ...line,
-      id: existing.id,
-      parsed,
-    };
-  }
-
-  return rows;
-}
-
-function mergeContinuationLog(
-  rows: DisplayLogLine[],
-  line: LogLine,
-  parsed: ParsedLogText,
-): boolean {
-  if (rows.length === 0 || line.stream !== "stderr" || parsed.stage) return false;
-  if (!looksLikeContinuation(parsed.text)) return false;
-  const previous = rows[rows.length - 1];
-  if (previous.stream !== line.stream || previous.parsed.stage) return false;
-  const mergedText = `${previous.parsed.text} ${parsed.text}`.replace(/\s+/g, " ").trim();
-  if (mergedText.length > 260) return false;
-  rows[rows.length - 1] = {
-    ...previous,
-    text: mergedText,
-    parsed: parseLogText(mergedText),
-  };
-  return true;
-}
-
-function looksLikeContinuation(text: string): boolean {
-  if (!text || text.length > 90) return false;
-  return /^[a-z(,.;:]/.test(text) || /^(line|column|value|extract|automatic|translation|fallback|during)\b/i.test(text);
-}
-
-function progressLogKey(parsed: ParsedLogText): string {
-  return parsed.stage;
-}
-
-function isCompleteProgress(parsed: ParsedLogText): boolean {
-  return parsed.percent != null && parsed.percent >= 100;
 }
 
 export function cap(s: string): string {
@@ -221,107 +112,6 @@ function progressStatus(status: TaskStatus): ProgressProps["status"] {
   if (status === "error") return "exception";
   if (status === "success") return "success";
   return undefined;
-}
-
-function summarizeLogText(text: string): string {
-  const parsed = parseLogText(text);
-  if (!parsed.stage) return parsed.text;
-  return parsed.detail ? `${parsed.stage} · ${parsed.detail}` : parsed.stage;
-}
-
-function parseLogText(text: string): ParsedLogText {
-  const normalized = text.replace(/\s+/g, " ").trim();
-  const percent = parsePercent(normalized);
-  const richCount = parseRichProgressCount(normalized);
-  const counts = [...normalized.matchAll(/(\d+)\/(\d+|--)/g)];
-  const usableCount = [...counts]
-    .reverse()
-    .find((m) => m[2] !== "--" && !isInsideParentheses(normalized, m.index ?? 0));
-  const stage = extractStage(normalized);
-  const current = richCount?.current ?? countNumber(usableCount?.[1]);
-  const total = richCount?.total ?? countNumber(usableCount?.[2]);
-  const countDetail = formatCountDetail(current, total);
-  return {
-    text: normalized,
-    stage,
-    detail: countDetail,
-    percent: percent ?? percentFromCount(usableCount) ?? percentFromRichCount(richCount),
-    current,
-    total,
-  };
-}
-
-function parsePercent(text: string): number | undefined {
-  const match = text.match(/(\d{1,3})%/);
-  if (!match) return undefined;
-  const value = Number(match[1]);
-  return value <= 100 ? value : undefined;
-}
-
-function percentFromCount(match: RegExpMatchArray | undefined): number | undefined {
-  if (!match || match[2] === "--") return undefined;
-  const current = Number(match[1]);
-  const total = Number(match[2]);
-  if (!Number.isFinite(current) || !Number.isFinite(total) || total <= 0) {
-    return undefined;
-  }
-  return Math.min(100, Math.floor((Math.min(current, total) / total) * 100));
-}
-
-function extractStage(text: string): string {
-  const beforeBar = text.match(/^(.+?)\s+\(\d+\/\d+\)\s+/);
-  if (beforeBar) return beforeBar[1].trim();
-  const beforeRichCount = text.match(/^(.+?)\s+-+\s+\d+(?:[/?](?:\d+|--))?/);
-  if (beforeRichCount) return beforeRichCount[1].trim();
-  if (/^translate\s+\d{1,3}(?:\b|$)/.test(text)) return "translate";
-  const beforeCount = text.match(/^(.+?)\s+\d+\/(?:\d+|--)\b/);
-  return beforeCount ? beforeCount[1].replace(/-+$/g, "").trim() : "";
-}
-
-interface RichProgressCount {
-  current: number;
-  total: number | undefined;
-}
-
-function parseRichProgressCount(text: string): RichProgressCount | undefined {
-  const translateCount = text.match(/^translate\s+(\d{1,3})(?:\b|$)/);
-  if (translateCount) {
-    const current = Number(translateCount[1]);
-    if (!Number.isFinite(current) || current > 100) return undefined;
-    return { current, total: 100 };
-  }
-  const match = text.match(/^.+?\s+-+\s+(\d+)(?:[/?](\d+|--))?/);
-  if (!match) return undefined;
-  const current = Number(match[1]);
-  const total = match[2] && match[2] !== "--" ? Number(match[2]) : undefined;
-  if (!Number.isFinite(current)) return undefined;
-  return { current, total: Number.isFinite(total) ? total : undefined };
-}
-
-function percentFromRichCount(count: RichProgressCount | undefined): number | undefined {
-  if (!count?.total || count.total <= 0) return undefined;
-  return Math.min(100, Math.floor((Math.min(count.current, count.total) / count.total) * 100));
-}
-
-function countNumber(value: string | undefined): number | undefined {
-  if (!value || value === "--") return undefined;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : undefined;
-}
-
-function formatCountDetail(current: number | undefined, total: number | undefined): string {
-  if (current == null) return "";
-  return total == null ? `${current}` : `${current}/${total}`;
-}
-
-function isProgressFrame(parsed: ParsedLogText): boolean {
-  return parsed.stage === "translate" && parsed.percent != null;
-}
-
-function isInsideParentheses(text: string, index: number): boolean {
-  const open = text.lastIndexOf("(", index);
-  const close = text.lastIndexOf(")", index);
-  return open > close;
 }
 
 const overviewGridStyle: CSSProperties = {
@@ -359,7 +149,7 @@ const logBoxStyle: CSSProperties = {
 
 const logRowStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "10px minmax(0, 1fr) auto",
+  gridTemplateColumns: "10px minmax(0, 1fr)",
   alignItems: "center",
   gap: 8,
   minHeight: 28,
@@ -382,11 +172,4 @@ const logTextStyle: CSSProperties = {
   verticalAlign: "bottom",
   whiteSpace: "nowrap",
   color: "#f1f5f9",
-};
-
-const detailStyle: CSSProperties = {
-  marginLeft: 8,
-  fontSize: 12,
-  whiteSpace: "nowrap",
-  color: "#94a3b8",
 };

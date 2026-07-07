@@ -100,6 +100,8 @@ const zh = {
     defaultLangOut: "默认目标语言",
     defaultProvider: "默认服务商",
     logRetention: "日志保留天数",
+    developerMode: "开发者模式",
+    developerModeHelp: "在翻译页显示完整原始日志。",
     offlineAssets: "BabelDOC 离线资源",
     offlineAssetsReady: "离线资源已安装",
     offlineAssetsMissing: "离线资源未安装，可选安装以支持首次运行离线翻译",

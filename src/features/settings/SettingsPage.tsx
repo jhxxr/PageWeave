@@ -10,6 +10,7 @@ import {
   Progress,
   Select,
   Space,
+  Switch,
   Typography,
 } from "antd";
 import {
@@ -58,6 +59,7 @@ export default function SettingsPage() {
     default_lang_out: "zh",
     default_provider_id: "",
     log_retention_days: 7,
+    developer_mode: false,
     cache_dir: "",
   };
 
@@ -223,6 +225,21 @@ export default function SettingsPage() {
               style={{ width: 120 }}
               value={cur.log_retention_days}
               onChange={(v) => s.patch({ log_retention_days: Number(v) || 7 })}
+            />
+          </div>
+
+          <div style={rowStyle}>
+            <span>
+              <Text style={{ fontWeight: 600, display: "block" }}>
+                {t("settings.developerMode")}
+              </Text>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {t("settings.developerModeHelp")}
+              </Text>
+            </span>
+            <Switch
+              checked={cur.developer_mode}
+              onChange={(checked) => s.patch({ developer_mode: checked })}
             />
           </div>
 

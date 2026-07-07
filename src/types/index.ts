@@ -205,5 +205,6 @@ export interface AppSettings {
   default_lang_out: string;
   default_provider_id: string;
   log_retention_days: number;
+  developer_mode: boolean;
   cache_dir: string;
 }

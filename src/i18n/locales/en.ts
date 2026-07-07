@@ -100,6 +100,8 @@ const en = {
     defaultLangOut: "Default target language",
     defaultProvider: "Default provider",
     logRetention: "Log retention (days)",
+    developerMode: "Developer mode",
+    developerModeHelp: "Show full raw translation logs on the Translate page.",
     offlineAssets: "BabelDOC offline assets",
     offlineAssetsReady: "Offline assets are installed",
     offlineAssetsMissing: "Offline assets are optional and not installed yet",

@@ -400,8 +400,7 @@ async fn read_stderr<R: tokio::io::AsyncRead + Unpin>(app: AppHandle, task_id: S
             Ok(n) => {
                 let lines = parser.push_bytes(&buf[..n]);
                 for line in lines {
-                    let is_progress_update = line.overall.is_some() || line.stage.is_some();
-                    if is_progress_update {
+                    if line.overall.is_some() || line.stage.is_some() {
                         let _ = app.emit(
                             "translate://progress",
                             &TranslateEvent::Progress {
@@ -413,16 +412,14 @@ async fn read_stderr<R: tokio::io::AsyncRead + Unpin>(app: AppHandle, task_id: S
                             },
                         );
                     }
-                    if !is_progress_update {
-                        let _ = app.emit(
-                            "translate://progress",
-                            &TranslateEvent::Log {
-                                task_id: task_id.clone(),
-                                line: mask_secrets(&line.text),
-                                stream: "stderr".into(),
-                            },
-                        );
-                    }
+                    let _ = app.emit(
+                        "translate://progress",
+                        &TranslateEvent::Log {
+                            task_id: task_id.clone(),
+                            line: mask_secrets(&line.text),
+                            stream: "stderr".into(),
+                        },
+                    );
                 }
             }
             Err(_) => break,
@@ -430,8 +427,7 @@ async fn read_stderr<R: tokio::io::AsyncRead + Unpin>(app: AppHandle, task_id: S
     }
     // Flush trailing partial line.
     for line in parser.finish() {
-        let is_progress_update = line.overall.is_some() || line.stage.is_some();
-        if is_progress_update {
+        if line.overall.is_some() || line.stage.is_some() {
             let _ = app.emit(
                 "translate://progress",
                 &TranslateEvent::Progress {
@@ -443,16 +439,14 @@ async fn read_stderr<R: tokio::io::AsyncRead + Unpin>(app: AppHandle, task_id: S
                 },
             );
         }
-        if !is_progress_update {
-            let _ = app.emit(
-                "translate://progress",
-                &TranslateEvent::Log {
-                    task_id: task_id.clone(),
-                    line: mask_secrets(&line.text),
-                    stream: "stderr".into(),
-                },
-            );
-        }
+        let _ = app.emit(
+            "translate://progress",
+            &TranslateEvent::Log {
+                task_id: task_id.clone(),
+                line: mask_secrets(&line.text),
+                stream: "stderr".into(),
+            },
+        );
     }
 }
 

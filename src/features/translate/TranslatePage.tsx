@@ -40,7 +40,6 @@ import {
   LogStream,
   ProgressOverview,
   cap,
-  latestReadableLog,
   statusColor,
 } from "./ProgressLogPanel";
 
@@ -53,6 +52,7 @@ export default function TranslatePage() {
   const providers = useProviderStore((s) => s.providers);
   const defaultId = useProviderStore((s) => s.defaultId);
   const settings = useSettingsStore((s) => s.settings);
+  const developerMode = !!settings?.developer_mode;
   const [busy, setBusy] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -443,9 +443,10 @@ export default function TranslatePage() {
           percent={st.progress}
           status={st.status}
           stage={st.stage}
-          latestLog={latestReadableLog(st.logs)}
+          latestLog={developerMode ? st.logs[st.logs.length - 1]?.text : undefined}
           stageLabel={t("translate.currentStage")}
           latestLabel={t("tasks.latestLog")}
+          showLatest={developerMode}
         />
         {st.statusMessage && (
           <Paragraph type={st.status === "error" ? "danger" : undefined} style={{ marginTop: 12, marginBottom: 0 }}>
@@ -478,32 +479,34 @@ export default function TranslatePage() {
         )}
       </Card>
 
-      <Card
-        title={
-          <Space>
-            <span>{t("translate.log")}</span>
-            <Tooltip title={t("common.copy")}>
-              <Button
-                size="small"
-                icon={<CopyOutlined />}
-                onClick={() => {
-                  const txt = st.logs.map((l) => l.text).join("\n");
-                  navigator.clipboard.writeText(txt).then(() =>
-                    message.success(t("common.copied")),
-                  );
-                }}
-              />
-            </Tooltip>
-          </Space>
-        }
-        className="glass-card"
-      >
-        <LogStream
-          logs={st.logs}
-          emptyText={t("translate.logEmpty")}
-          containerRef={logRef}
-        />
-      </Card>
+      {developerMode && (
+        <Card
+          title={
+            <Space>
+              <span>{t("translate.log")}</span>
+              <Tooltip title={t("common.copy")}>
+                <Button
+                  size="small"
+                  icon={<CopyOutlined />}
+                  onClick={() => {
+                    const txt = st.logs.map((l) => l.text).join("\n");
+                    navigator.clipboard.writeText(txt).then(() =>
+                      message.success(t("common.copied")),
+                    );
+                  }}
+                />
+              </Tooltip>
+            </Space>
+          }
+          className="glass-card"
+        >
+          <LogStream
+            logs={st.logs}
+            emptyText={t("translate.logEmpty")}
+            containerRef={logRef}
+          />
+        </Card>
+      )}
     </Space>
   );
 

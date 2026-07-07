@@ -23,6 +23,8 @@ pub struct AppSettings {
     #[serde(default = "default_log_retention")]
     pub log_retention_days: u32,
     #[serde(default)]
+    pub developer_mode: bool,
+    #[serde(default)]
     pub cache_dir: String,
 }
 
@@ -52,6 +54,7 @@ impl Default for AppSettings {
             default_lang_out: default_lang_out(),
             default_provider_id: String::new(),
             log_retention_days: default_log_retention(),
+            developer_mode: false,
             cache_dir: String::new(),
         }
     }
