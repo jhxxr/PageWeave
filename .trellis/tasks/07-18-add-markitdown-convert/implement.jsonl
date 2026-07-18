@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend contracts and forbidden patterns when adding convert module"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Where to place new Rust convert module"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "Where to place convert feature UI"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality bar for new page/store"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Zustand store conventions for convertStore"}
+{"file": ".trellis/tasks/07-18-add-markitdown-convert/prd.md", "reason": "Requirements and acceptance criteria"}
+{"file": ".trellis/tasks/07-18-add-markitdown-convert/design.md", "reason": "Architecture, contracts, peel-off checklist"}
+{"file": "sidecar/README.md", "reason": "Existing sidecar packaging conventions to mirror"}

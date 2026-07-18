@@ -24,19 +24,21 @@
 
 ## 简介
 
-PageWeave 是一款 Windows 本地 PDF 翻译桌面应用。拖入 PDF 文件，选择源/目标语言、AI 服务商和模型，即可调用 [BabelDOC](https://github.com/funstory-ai/BabelDOC) 生成尽量保留原排版、图片与表格结构的译文 PDF。
+PageWeave 是一款 Windows 本地 PDF 翻译桌面应用。拖入 PDF 文件，选择源/目标语言、AI 服务商和模型，即可调用 [BabelDOC](https://github.com/funstory-ai/BabelDOC) 生成尽量保留原排版、图片与表格结构的译文 PDF。另提供独立的 [markitdown](https://github.com/microsoft/markitdown) 文档转 Markdown 能力（PDF / Office），与翻译链路平行、可剥离。
 
-- **纯本地运行**：翻译引擎以内置 sidecar 形式随应用分发，用户无需安装 Python。
+- **纯本地运行**：翻译引擎与 markitdown 转换引擎均以内置 sidecar 形式随应用分发，用户无需安装 Python。
 - **API Key 本地加密**：Key 经 Windows Credential Manager（DPAPI）加密保存，SQLite 只存引用，导出配置默认不含 Key。
 - **多服务商预设**：内置 OpenAI、DeepSeek、硅基流动、阿里云百炼、Moonshot、智谱、Ollama / LM Studio 等 OpenAI-compatible 预设。
 - **灵活的输出模式**：仅译文、原文+译文双语对照、全部输出可选。
 - **高级翻译参数**：页码范围、术语表 CSV、OCR 模式、并发池、自定义 system prompt 等。
+- **文档转 Markdown**：本地 PDF / DOCX / PPTX / XLSX / XLS → `.md`，无需 API Key。
 
 ## 功能
 
 | 模块 | 能力 |
 |------|------|
 | PDF 翻译 | 拖拽或点击选择 PDF，实时进度、日志、取消、完成后打开文件/文件夹 |
+| 转 Markdown | 单文件文档 → Markdown；状态 + 日志；成功后打开文件/文件夹（无应用内预览） |
 | AI API 配置 | 新增/编辑/删除服务商，测试连接，拉取 `/models` 模型列表，导出配置（不含 Key） |
 | 翻译参数 | 页码范围、术语表、字体与排版、OCR 与兼容性、缓存与并发、OpenAI 调参 |
 | 任务管理 | 查看当前任务状态、输出文件、最近日志 |
@@ -49,6 +51,7 @@ PageWeave 是一款 Windows 本地 PDF 翻译桌面应用。拖入 PDF 文件，
 | 桌面端 | Tauri 2.x + React 19 + TypeScript + Ant Design + Zustand + i18next + Vite |
 | 后端 | Rust（SQLite via rusqlite，API Key via keyring → Windows Credential Manager + DPAPI） |
 | 翻译引擎 | BabelDOC，以内置 sidecar 形式随应用分发 |
+| 转换引擎 | markitdown，独立 sidecar，与翻译可并存、可剥离 |
 
 ## 快速开始
 
@@ -61,18 +64,25 @@ pnpm tauri dev
 
 首次翻译前，请在「设置」页安装 BabelDOC 离线资源包（模型 + 字体）。
 
-## 构建 sidecar（内置翻译引擎）
+## 构建 sidecar（内置引擎）
 
 sidecar 不随 `tauri dev` 自动构建，首次需单独执行：
 
 ```bash
+# BabelDOC 翻译引擎
 bash sidecar/build_sidecar.sh [/path/to/venv/python]
 # 默认使用 /tmp/bd_venv/Scripts/python.exe
+
+# markitdown 文档转 Markdown 引擎（独立）
+bash sidecar/build_markitdown_sidecar.sh [/path/to/venv/python]
+# 需要: pip install 'markitdown[pdf,docx,pptx,xlsx,xls]==0.1.6' pyinstaller
 ```
 
-脚本会：安装 PyInstaller、预下载模型/字体、PyInstaller 冻结、补拷 MSVC 运行时、生成离线资源包、复制并重命名 sidecar、烟测 `--version`。
+BabelDOC 脚本会：安装 PyInstaller、预下载模型/字体、PyInstaller 冻结、补拷 MSVC 运行时、生成离线资源包、复制并重命名 sidecar、烟测 `--version`。
 
-开发期可直接使用 `sidecar/dist/babeldoc-sidecar/`；手动拷贝 exe 时务必连同同级 `_internal/` 一起拷。
+markitdown 脚本会：确保 markitdown 扩展依赖、PyInstaller one-folder 冻结、生成 Tauri triple 后缀 exe、烟测 `--version`。
+
+开发期可直接使用 `sidecar/dist/babeldoc-sidecar/` 与 `sidecar/dist/markitdown-sidecar/`；手动拷贝 exe 时务必连同同级 `_internal/` 一起拷。
 
 ## 打包与分发
 
@@ -80,7 +90,7 @@ bash sidecar/build_sidecar.sh [/path/to/venv/python]
 pnpm tauri build
 ```
 
-`tauri.conf.json` 通过 `externalBin` 引入 sidecar exe，并通过 `resources` 打包完整 `sidecar/dist/babeldoc-sidecar/` 目录，安装后无需 Python 前置依赖。
+`tauri.conf.json` 通过 `externalBin` 引入两个 sidecar exe，并通过 `resources` 打包完整 `babeldoc-sidecar/` 与 `markitdown-sidecar/` 目录，安装后无需 Python 前置依赖。
 
 ## 安全
 

@@ -4,6 +4,8 @@ import type {
   BabeldocInfo,
   ConnectionTestResult,
   ConnectivityRequest,
+  ConvertRequest,
+  MarkitdownInfo,
   ModelFetchResult,
   OfflineAssetsInfo,
   OfflineAssetsInstallResult,
@@ -58,6 +60,13 @@ export const translateApi = {
     call<OfflineAssetsInstallResult>("install_offline_assets_from_file", { path }),
   listTaskRecords: () => call<TaskRecord[]>("list_task_records"),
   deleteTaskRecord: (id: string) => call<boolean>("delete_task_record", { id }),
+};
+
+// ---- convert (markitdown; peel-off module) ----
+export const convertApi = {
+  start: (req: ConvertRequest) => call<string>("start_convert", { req }),
+  cancel: (task_id: string) => call<boolean>("cancel_convert", { taskId: task_id }),
+  markitdownInfo: () => call<MarkitdownInfo>("get_markitdown_info"),
 };
 
 // ---- settings ----

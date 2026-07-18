@@ -744,3 +744,154 @@ if enhance {
 }
 ```
 
+---
+
+## Scenario: Markitdown Convert Module (Peel-off Document → Markdown)
+
+### 1. Scope / Trigger
+
+- Trigger: PageWeave adds a second Python engine (microsoft/markitdown) for local document → Markdown conversion, parallel to BabelDOC PDF translation.
+- Problem: Mixing markitdown into the BabelDOC sidecar or the `translate` Rust module couples packaging, failure modes, and makes feature removal expensive.
+- Scope: Independent `markitdown-sidecar` (PyInstaller one-folder), Rust `src-tauri/src/convert/*`, frontend `/convert` feature, Tauri `externalBin`/`resources` second entry, CI release build step. No API keys, no convert task history DB.
+
+### 2. Signatures
+
+- Rust module: `src-tauri/src/convert/` (`mod`, `model`, `args`, `state`, `runner`, `commands`)
+- Commands (registered in `lib.rs`):
+  - `start_convert(app, req: ConvertRequest) -> AppResult<String>` // returns `task_id`
+  - `cancel_convert(app, task_id: String) -> AppResult<bool>` // Tauri arg from FE: `taskId`
+  - `get_markitdown_info(app) -> AppResult<MarkitdownInfo>`
+- Shared openers remain on translate module (not convert-owned):
+  - `open_file_path`, `reveal_file_path`
+- Request:
+  - `ConvertRequest { task_id?: string, input_path: string, output_dir: string }`
+- Probe:
+  - `MarkitdownInfo { installed: bool, version?: string, path?: string, hint: string }`
+- Events channel: `convert://progress`
+- Event enum: `ConvertEvent` with `#[serde(tag = "type", rename_all = "lowercase")]`
+  - `log { task_id, line, stream }`
+  - `status { task_id, status, output_file?, message? }` // no progress percentage
+- Frontend:
+  - `convertApi.start` / `cancel` / `markitdownInfo`
+  - `ConvertEvent` TS union mirrors lowercase `type`
+  - `CONVERT_ALLOWED_EXTENSIONS` must stay in sync with Rust `convert::args::ALLOWED_EXTENSIONS`
+- Sidecar:
+  - Entry: `sidecar/markitdown_entry.py`
+  - Spec: `sidecar/markitdown_sidecar.spec`
+  - Build: `sidecar/build_markitdown_sidecar.sh`
+  - Dist: `sidecar/dist/markitdown-sidecar/` (+ triple-suffixed exe for `externalBin`)
+  - CLI contract: `markitdown-sidecar <input> -o <output.md>` and `--version`
+- Packaging (`tauri.conf.json`):
+  - `externalBin` includes `../sidecar/dist/markitdown-sidecar/markitdown-sidecar`
+  - `resources` maps that folder to `markitdown-sidecar/`
+- Registry state: `ConvertRegistry` managed in app setup independently of `TaskRegistry`
+
+### 3. Contracts
+
+- Convert is a **peel-off** module: must not call `translate::*` internals; translate must not depend on convert. Shared utilities may live outside both only if translate remains valid after convert deletion.
+- MVP input extensions only: `pdf`, `docx`, `pptx`, `xlsx`, `xls` (case-insensitive). Frontend dialog filters and backend `is_allowed_extension` must match.
+- Local paths only: reject `http://`, `https://`, `ftp://`, `file://` schemes on input and output_dir.
+- No API Key / provider / secrets access on the convert path.
+- No convert rows in the translate task history table.
+- Single-file jobs only; `ConvertRegistry.try_begin` reserves the single slot **before** spawn; concurrent second start returns `InvalidInput` with a busy message.
+- Convert and translate may run concurrently (module-local single-task only).
+- Output naming: `{stem}.md` under `output_dir`; if that path exists, write `{stem}-YYYYMMDD-HHMMSS.md` using **local** time; never overwrite. Same-second collision may add millis suffix.
+- Create `output_dir` with `create_dir_all` when missing; fail clearly if path exists but is not a directory.
+- Sidecar resolution mirrors BabelDOC: resource dir → exe-adjacent → dev `sidecar/dist/...`. One-folder requires sibling `_internal/` (e.g. `python*.dll`).
+- Spawn env: `PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`, `NO_COLOR=1`, `FORCE_COLOR=0`; Windows `CREATE_NO_WINDOW`.
+- CLI argv is argv-array only (`Command::new(exe).args([...])`), never shell interpolation.
+- Frontend listens on `convert://progress` only (never reuse `translate://progress`).
+- First status event may arrive before React stores `taskId`; App listener must accept events when convert `taskId` is still null and bind from the first status.
+- Cancel: registry `kill` → runner `start_kill` on child; emit `status=cancelled`.
+- On pre-spawn failure after `try_begin`, runner/command path must `release_slot` so the registry does not stick at `running`.
+- CI/release must build markitdown sidecar whenever `tauri.conf.json` lists it in `externalBin`/`resources` (do not ship BabelDOC-only binaries that break Tauri bundle).
+- Dist artifacts under `sidecar/dist/` are not committed; placeholders may exist for local `cargo check` but production requires a real PyInstaller freeze.
+
+### 4. Validation & Error Matrix
+
+- Empty `input_path` -> `InvalidInput` "请选择要转换的文件"
+- Empty `output_dir` -> `InvalidInput` "请选择输出目录"
+- Remote URI input -> `InvalidInput` local-path message
+- Extension not in whitelist -> `InvalidInput` listing allowed extensions
+- Input path not a file -> `NotFound`
+- Convert already running (`try_begin` false) -> `InvalidInput` busy message
+- Sidecar missing / unusable -> status/error with reinstall/rebuild hint from probe
+- User cancel -> `status=cancelled`, no zombie child
+- markitdown non-zero exit -> `status=error` with exit code/message
+- Existing `{stem}.md` -> new stamped filename; original file untouched
+
+### 5. Good/Base/Bad Cases
+
+- Good: User converts `report.docx` to free `report.md`, opens file/folder; no API key required.
+- Base: `report.md` already exists → writes `report-YYYYMMDD-HHMMSS.md` without overwrite.
+- Bad: Folding markitdown into `babeldoc-sidecar` or calling `translate::runner` from convert, so peel-off requires editing the translation path.
+- Bad: Checking busy after spawn, allowing two convert children.
+- Bad: Emitting `type: "Status"` (PascalCase) so the convert UI never updates.
+- Bad: Shipping release without building markitdown while `externalBin` still references it.
+
+### 6. Tests Required
+
+- Rust unit tests in `convert::args` / `convert::model`:
+  - whitelist accept/reject
+  - remote URI reject
+  - free `{stem}.md` path
+  - stamp-on-exists path
+  - event `type` serializes as lowercase `status` / `log`
+- `cargo test convert::`
+- `pnpm exec tsc --noEmit` for TS request/event mirrors and `convertApi` invoke names
+- Manual smoke after real sidecar build:
+  - five formats → non-empty `.md`
+  - cancel mid-run
+  - second concurrent convert rejected
+  - convert while translate runs (or vice versa)
+  - open file / reveal folder
+- Peel-off desk check: deleting convert paths + markitdown packaging entries leaves translate compilable
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```rust
+// Non-atomic busy check then late insert → two starts both pass.
+if reg.is_busy().await { return Err(...); }
+tokio::spawn(run_convert(...));
+reg.insert(task_id, RunningTask { ... }).await;
+```
+
+```rust
+// Couples peel-off to translate; do not do this.
+use crate::translate::runner::resolve_sidecar;
+```
+
+#### Correct
+
+```rust
+// Reserve the single convert slot before spawning.
+if !reg.try_begin(task_id.clone(), cancel_tx).await {
+    return Err(AppError::InvalidInput(
+        "已有转换任务在进行中，请等待完成或先取消".into(),
+    ));
+}
+tokio::spawn(async move {
+    runner::run_convert(app2, task_id2, req, cancel_rx).await;
+});
+```
+
+```bash
+# Release / local packaging builds both engines when both are in externalBin.
+bash sidecar/build_sidecar.sh "$PYTHON"
+bash sidecar/build_markitdown_sidecar.sh "$PYTHON"
+```
+
+### Peel-off Checklist
+
+Delete or revert these without touching translate behavior:
+
+1. `sidecar/markitdown_entry.py`, `markitdown_sidecar.spec`, `build_markitdown_sidecar.sh`, `dist/markitdown-sidecar/`
+2. `src-tauri/src/convert/` and `lib.rs` `mod convert` + convert command registrations + `ConvertRegistry` manage
+3. markitdown entries in `tauri.conf.json` `externalBin` / `resources`
+4. CI steps that install/build markitdown only
+5. `src/features/convert/`, `convertStore`, `convertApi`, `/convert` route, sider item, convert i18n/types
+6. README / sidecar README markitdown sections
+
+Keep: `open_file_path`, `reveal_file_path`, settings `default_output_dir`, BabelDOC sidecar stack.

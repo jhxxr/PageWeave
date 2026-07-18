@@ -325,3 +325,22 @@ state correctly, but several commands still re-parsed event payload fields with
 local casts. The fix was to make the core event layer own `ThreadChannelEvent`
 and `isThreadEvent`, make `reduceChannelMetadata` the only channel metadata
 projection, and make `reduceThreads` the only thread replay reducer.
+
+---
+
+## Checklist: Adding a Second Local Engine (e.g. markitdown)
+
+When introducing another Python/native engine beside BabelDOC:
+
+- [ ] Independent sidecar folder + build script + Tauri `externalBin` / `resources` entry?
+- [ ] Independent Rust module (not nested under `translate`)?
+- [ ] Independent event channel prefix (`convert://` vs `translate://`)?
+- [ ] Frontend feature/store/api isolated for peel-off?
+- [ ] CI builds **every** engine listed in `tauri.conf.json`?
+- [ ] Serde event `type` is lowercase and mirrored in TS?
+- [ ] Busy/cancel registry is module-local; cross-engine concurrency policy documented?
+- [ ] Peel-off checklist written in backend quality guidelines?
+
+→ Contracts: `.trellis/spec/backend/quality-guidelines.md` (Markitdown Convert scenario)  
+→ Frontend: `.trellis/spec/frontend/quality-guidelines.md` (Convert Page scenario)
+

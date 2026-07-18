@@ -197,6 +197,42 @@ export type TranslateEvent =
       message?: string;
     };
 
+/** markitdown convert request (single local file). */
+export interface ConvertRequest {
+  task_id?: string;
+  input_path: string;
+  output_dir: string;
+}
+
+export interface MarkitdownInfo {
+  installed: boolean;
+  version?: string;
+  path?: string;
+  hint: string;
+}
+
+/** Events on `convert://progress`. No percentage field. */
+export type ConvertEvent =
+  | { task_id: string; type: "log"; line: string; stream: string }
+  | {
+      task_id: string;
+      type: "status";
+      status: string;
+      output_file?: string;
+      message?: string;
+    };
+
+/** MVP whitelist — keep in sync with Rust `convert::args::ALLOWED_EXTENSIONS`. */
+export const CONVERT_ALLOWED_EXTENSIONS = [
+  "pdf",
+  "docx",
+  "pptx",
+  "xlsx",
+  "xls",
+] as const;
+
+export type ConvertAllowedExtension = (typeof CONVERT_ALLOWED_EXTENSIONS)[number];
+
 export interface AppSettings {
   theme: string; // light | dark | system
   language: string; // zh | en

@@ -63,6 +63,7 @@ jobs:
           python -m venv .venv
           .\.venv\Scripts\python.exe -m pip install --upgrade pip setuptools wheel
           .\.venv\Scripts\python.exe -m pip install pyinstaller BabelDOC
+          .\.venv\Scripts\python.exe -m pip install 'markitdown[pdf,docx,pptx,xlsx,xls]==0.1.6'
 
       - name: Set CI version
         shell: pwsh
@@ -96,6 +97,10 @@ jobs:
       - name: Build BabelDOC sidecar
         shell: bash
         run: bash sidecar/build_sidecar.sh "$PWD/.venv/Scripts/python.exe"
+
+      - name: Build markitdown sidecar
+        shell: bash
+        run: bash sidecar/build_markitdown_sidecar.sh "$PWD/.venv/Scripts/python.exe"
 
       - name: Build and publish Tauri release
         uses: tauri-apps/tauri-action@v1

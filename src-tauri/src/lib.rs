@@ -1,3 +1,4 @@
+pub mod convert;
 pub mod db;
 pub mod error;
 pub mod provider;
@@ -5,6 +6,8 @@ pub mod secrets;
 pub mod settings;
 pub mod translate;
 
+use convert::commands as ccmd;
+use convert::state::ConvertRegistry;
 use db::DbState;
 use provider::commands as pcmd;
 use settings::commands as scmd;
@@ -40,6 +43,8 @@ pub fn run() {
 
             // Task registry for live translations (cancel support).
             app.manage(TaskRegistry::new());
+            // Convert registry (markitdown) — independent single-task busy gate.
+            app.manage(ConvertRegistry::new());
 
             Ok(())
         })
@@ -68,6 +73,10 @@ pub fn run() {
             acmd::get_offline_assets_info,
             acmd::install_offline_assets_from_file,
             acmd::install_offline_assets_from_release,
+            // convert (markitdown; peel-off via removing convert module + these cmds)
+            ccmd::start_convert,
+            ccmd::cancel_convert,
+            ccmd::get_markitdown_info,
             // settings
             scmd::get_settings,
             scmd::save_settings,

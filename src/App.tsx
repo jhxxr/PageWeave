@@ -3,6 +3,7 @@ import { Button, Layout, Menu, theme as antdTheme } from "antd";
 import {
   CloseOutlined,
   FileTextOutlined,
+  FileMarkdownOutlined,
   ApiOutlined,
   ControlOutlined,
   HistoryOutlined,
@@ -18,9 +19,10 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useSettingsStore } from "./stores/settingsStore";
 import { useProviderStore } from "./stores/providerStore";
 import { useTranslateStore } from "./stores/translateStore";
+import { useConvertStore } from "./stores/convertStore";
 import { useUpdateStore } from "./stores/updateStore";
 import { translateApi } from "./services/api";
-import type { TranslateEvent } from "./types";
+import type { ConvertEvent, TranslateEvent } from "./types";
 import AppRoutes from "./app/routes";
 
 const { Sider, Content } = Layout;
@@ -104,35 +106,68 @@ export default function App() {
           .setBabeldoc(false, "未检测到 BabelDOC 离线资源包，请在设置页安装。");
       });
 
-    let unlisten: UnlistenFn | undefined;
+    let unlistenTranslate: UnlistenFn | undefined;
+    let unlistenConvert: UnlistenFn | undefined;
     (async () => {
-      unlisten = await listen<TranslateEvent>("translate://progress", (e) => {
-        const ev = e.payload;
-        const st = useTranslateStore.getState();
-        if (ev.task_id && st.taskId && ev.task_id !== st.taskId) return;
-        switch (ev.type) {
-          case "log":
-            st.appendLog(ev.line, ev.stream);
-            break;
-          case "progress":
-            st.setProgress(ev.overall, ev.stage || undefined);
-            break;
-          case "status":
-            st.setStatus(ev.status as never);
-            if (ev.output_files) st.setOutputFiles(ev.output_files);
-            if (ev.message) st.setStatusMessage(ev.message);
-            if (ev.status === "success") st.setProgress(100);
-            break;
-        }
-      });
+      unlistenTranslate = await listen<TranslateEvent>(
+        "translate://progress",
+        (e) => {
+          const ev = e.payload;
+          const st = useTranslateStore.getState();
+          if (ev.task_id && st.taskId && ev.task_id !== st.taskId) return;
+          switch (ev.type) {
+            case "log":
+              st.appendLog(ev.line, ev.stream);
+              break;
+            case "progress":
+              st.setProgress(ev.overall, ev.stage || undefined);
+              break;
+            case "status":
+              st.setStatus(ev.status as never);
+              if (ev.output_files) st.setOutputFiles(ev.output_files);
+              if (ev.message) st.setStatusMessage(ev.message);
+              if (ev.status === "success") st.setProgress(100);
+              break;
+          }
+        },
+      );
+      unlistenConvert = await listen<ConvertEvent>(
+        "convert://progress",
+        (e) => {
+          const ev = e.payload;
+          const st = useConvertStore.getState();
+          // Accept events while taskId is still null (race between start()
+          // resolving and the first "running" status event).
+          if (ev.task_id && st.taskId && ev.task_id !== st.taskId) return;
+          switch (ev.type) {
+            case "log":
+              st.appendLog(ev.line, ev.stream);
+              break;
+            case "status":
+              st.setStatus(ev.status as never);
+              if (ev.output_file) st.setOutputFile(ev.output_file);
+              if (ev.message) st.setStatusMessage(ev.message);
+              // Capture task id from the first status event if start() has not
+              // returned yet, so cancel/filtering still work.
+              if (!st.taskId && ev.task_id) st.setTaskId(ev.task_id);
+              break;
+          }
+        },
+      );
     })();
     return () => {
-      void unlisten?.();
+      void unlistenTranslate?.();
+      void unlistenConvert?.();
     };
   }, []);
 
   const items = [
     { key: "/translate", icon: <FileTextOutlined />, label: t("app.nav.translate") },
+    {
+      key: "/convert",
+      icon: <FileMarkdownOutlined />,
+      label: t("app.nav.convert"),
+    },
     { key: "/provider", icon: <ApiOutlined />, label: t("app.nav.provider") },
     { key: "/params", icon: <ControlOutlined />, label: t("app.nav.params") },
     { key: "/tasks", icon: <HistoryOutlined />, label: t("app.nav.tasks") },
