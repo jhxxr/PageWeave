@@ -290,3 +290,36 @@ Refined PageWeave with custom brand icon assets, global Ant Design theme/style p
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: Add markitdown convert module
+
+**Date**: 2026-07-18
+**Task**: Add markitdown convert module
+**Branch**: `master`
+
+### Summary
+
+Planned and implemented peel-off markitdown document-to-Markdown: independent sidecar, Rust convert module, /convert UI, CI packaging, code-specs; committed and pushed 6cda32f. Real sidecar freeze still local/CI-only (dist gitignored).
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6cda32f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
