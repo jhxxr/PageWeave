@@ -343,17 +343,19 @@ Re-opened 07-06-advanced-params for full PRD check; fixed pages regex for open-e
 
 | Hash | Message |
 |------|---------|
-| `9ea6165` | (see git log) |
-| `HEAD` | (see git log) |
+| `9ea6165` | feat: land advanced translation params page |
+| `53ec09b` | fix: harden advanced params validation and sparse defaults |
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] cargo test translate:: (34) + tsc --noEmit
+- [ ] Optional manual UI/e2e smoke on /params
 
 ### Status
 
-[OK] **Completed**
+[OK] **Completed** (archived 07-06-advanced-params)
 
 ### Next Steps
 
-- None - task complete
+- Optional: manual smoke for advanced params e2e
+- Remaining open: 00-bootstrap-guidelines; empty 07-07-add-macos-support shell
