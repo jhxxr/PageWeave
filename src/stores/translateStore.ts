@@ -125,7 +125,18 @@ export const useTranslateStore = create<TranslateState>((set, get) => ({
   setBabeldoc: (installed, hint) =>
     set({ babeldocInstalled: installed, babeldocHint: hint }),
   setAdvanced: (patch) =>
-    set((st) => ({ advanced: { ...st.advanced, ...patch } })),
+    set((st) => {
+      const next: AdvancedParams = { ...st.advanced, ...patch };
+      // `undefined` in a patch means "clear this field" (back to historical default).
+      // Object spread would leave the key as `undefined`; delete it so the
+      // slice stays a sparse `{}` of only explicitly set values.
+      for (const key of Object.keys(patch) as (keyof AdvancedParams)[]) {
+        if (patch[key] === undefined) {
+          delete next[key];
+        }
+      }
+      return { advanced: next };
+    }),
   resetAdvanced: () => set({ advanced: {} }),
   resetTask: () =>
     set({

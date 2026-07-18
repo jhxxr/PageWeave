@@ -9,12 +9,15 @@ use crate::translate::model::{BabeldocInfo, TranslateEvent, TranslateRequest};
 use crate::translate::runner;
 use crate::translate::state::TaskRegistry;
 
-/// `^\s*\d+(-\d*)?(\s*,\s*\d+(-\d*)?)*\s*$` — accepts babeldoc's `--pages`
-/// format: `1`, `1,2`, `1-3`, `1-,-3`, `1,2-3,-5`. Compiled once.
+/// Accepts babeldoc's `--pages` format (from sidecar `--help`):
+/// `1`, `1,2`, `1-3`, `1-`, `-3`, `1-,-3`, `1,2-3,-5`, `3-5`.
+/// Each token is either `N`, `N-`, `N-M`, or `-M` (open-ended ranges allowed).
+/// Compiled once.
 static PAGES_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 fn pages_re() -> &'static regex::Regex {
     PAGES_RE.get_or_init(|| {
-        regex::Regex::new(r"^\s*\d+(-\d*)?(\s*,\s*\d+(-\d*)?)*\s*$")
+        // token = \d+(-\d*)?  |  -\d+
+        regex::Regex::new(r"^\s*(?:\d+(?:-\d*)?|-\d+)(?:\s*,\s*(?:\d+(?:-\d*)?|-\d+))*\s*$")
             .expect("pages regex is a valid literal")
     })
 }
@@ -200,4 +203,101 @@ fn validate_advanced(a: &crate::translate::model::AdvancedParams) -> AppResult<(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::translate::model::AdvancedParams;
+
+    #[test]
+    fn pages_regex_accepts_babeldoc_examples() {
+        for ok in [
+            "1",
+            "1,2",
+            "1-3",
+            "1-",
+            "-3",
+            "1-,-3",
+            "1,2-3,-5",
+            "3-5",
+            " 1, 2 ",
+        ] {
+            assert!(
+                pages_re().is_match(ok),
+                "expected pages pattern to accept {ok:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn pages_regex_rejects_invalid() {
+        for bad in ["foo", "1--3", "1,", ",1", "1-2-3", "-", "1-2,", ""] {
+            assert!(
+                !pages_re().is_match(bad),
+                "expected pages pattern to reject {bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_advanced_rejects_bad_pages() {
+        let err = validate_advanced(&AdvancedParams {
+            pages: Some("foo".into()),
+            ..Default::default()
+        })
+        .unwrap_err();
+        match err {
+            AppError::InvalidInput(msg) => assert!(msg.contains("pages")),
+            other => panic!("expected InvalidInput, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_advanced_accepts_open_ended_pages() {
+        validate_advanced(&AdvancedParams {
+            pages: Some("1-,-3".into()),
+            ..Default::default()
+        })
+        .expect("babeldoc open-ended pages example must pass");
+    }
+
+    #[test]
+    fn validate_advanced_rejects_zero_numeric() {
+        let err = validate_advanced(&AdvancedParams {
+            min_text_length: Some(0),
+            ..Default::default()
+        })
+        .unwrap_err();
+        match err {
+            AppError::InvalidInput(msg) => assert!(msg.contains("min_text_length")),
+            other => panic!("expected InvalidInput, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_advanced_rejects_glossary_path_with_comma() {
+        let err = validate_advanced(&AdvancedParams {
+            glossary_files: Some(vec!["a,b.csv".into()]),
+            ..Default::default()
+        })
+        .unwrap_err();
+        match err {
+            AppError::InvalidInput(msg) => assert!(msg.contains("逗号")),
+            other => panic!("expected InvalidInput, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_advanced_rejects_oversized_system_prompt() {
+        let err = validate_advanced(&AdvancedParams {
+            custom_system_prompt: Some("x".repeat(CUSTOM_SYSTEM_PROMPT_MAX_CHARS + 1)),
+            ..Default::default()
+        })
+        .unwrap_err();
+        match err {
+            AppError::InvalidInput(msg) => assert!(msg.contains("custom_system_prompt")),
+            other => panic!("expected InvalidInput, got {other:?}"),
+        }
+    }
 }

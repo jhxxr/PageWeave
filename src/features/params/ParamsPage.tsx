@@ -152,7 +152,11 @@ export default function ParamsPage() {
                     id="pages"
                     placeholder={t("params.scope.pagesPlaceholder")}
                     value={a.pages ?? ""}
-                    onChange={(e) => st.setAdvanced({ pages: e.target.value })}
+                    onChange={(e) =>
+                      st.setAdvanced({
+                        pages: e.target.value.trim() ? e.target.value : undefined,
+                      })
+                    }
                     allowClear
                   />
                 </Row>
@@ -228,13 +232,14 @@ export default function ParamsPage() {
                           type="text"
                           danger
                           icon={<DeleteOutlined />}
-                          onClick={() =>
+                          onClick={() => {
+                            const next = (a.glossary_files ?? []).filter(
+                              (x) => x !== f,
+                            );
                             st.setAdvanced({
-                              glossary_files: (a.glossary_files ?? []).filter(
-                                (x) => x !== f,
-                              ),
-                            })
-                          }
+                              glossary_files: next.length ? next : undefined,
+                            });
+                          }}
                         >
                           {t("params.glossary.removeFile")}
                         </Button>
@@ -255,7 +260,9 @@ export default function ParamsPage() {
                   <Switch
                     checked={a.no_auto_extract_glossary ?? false}
                     onChange={(v) =>
-                      st.setAdvanced({ no_auto_extract_glossary: v })
+                      st.setAdvanced({
+                        no_auto_extract_glossary: v || undefined,
+                      })
                     }
                   />
                 </Row>
@@ -266,7 +273,9 @@ export default function ParamsPage() {
                   <Switch
                     checked={a.save_auto_extracted_glossary ?? false}
                     onChange={(v) =>
-                      st.setAdvanced({ save_auto_extracted_glossary: v })
+                      st.setAdvanced({
+                        save_auto_extracted_glossary: v || undefined,
+                      })
                     }
                   />
                 </Row>
@@ -316,7 +325,9 @@ export default function ParamsPage() {
                     checked={a.use_alternating_pages_dual ?? false}
                     disabled={dualOnlyDisabled}
                     onChange={(v) =>
-                      st.setAdvanced({ use_alternating_pages_dual: v })
+                      st.setAdvanced({
+                        use_alternating_pages_dual: v || undefined,
+                      })
                     }
                   />
                 </Row>
@@ -347,7 +358,9 @@ export default function ParamsPage() {
                         checked={a.dual_translate_first ?? false}
                         disabled={dualOnlyDisabled || enhanceOn}
                         onChange={(v) =>
-                          st.setAdvanced({ dual_translate_first: v })
+                          st.setAdvanced({
+                            dual_translate_first: v || undefined,
+                          })
                         }
                       />
                     </span>
@@ -397,7 +410,11 @@ export default function ParamsPage() {
                   <Switch
                     checked={enhanceOn}
                     onChange={(v) =>
-                      st.setAdvanced({ enhance_compatibility: v })
+                      // historical default is ON; store `undefined` for default
+                      // so appliedCount / reset semantics stay sparse.
+                      st.setAdvanced({
+                        enhance_compatibility: v ? undefined : false,
+                      })
                     }
                   />
                 </Row>
@@ -413,7 +430,9 @@ export default function ParamsPage() {
                   <Switch
                     checked={a.skip_clean ?? false}
                     disabled={enhanceOn}
-                    onChange={(v) => st.setAdvanced({ skip_clean: v })}
+                    onChange={(v) =>
+                      st.setAdvanced({ skip_clean: v || undefined })
+                    }
                   />
                 </Row>
                 <Row
@@ -427,7 +446,9 @@ export default function ParamsPage() {
                     checked={a.disable_rich_text_translate ?? false}
                     disabled={enhanceOn}
                     onChange={(v) =>
-                      st.setAdvanced({ disable_rich_text_translate: v })
+                      st.setAdvanced({
+                        disable_rich_text_translate: v || undefined,
+                      })
                     }
                   />
                 </Row>
@@ -439,7 +460,9 @@ export default function ParamsPage() {
                   <Switch
                     checked={a.translate_table_text ?? false}
                     onChange={(v) =>
-                      st.setAdvanced({ translate_table_text: v })
+                      st.setAdvanced({
+                        translate_table_text: v || undefined,
+                      })
                     }
                   />
                 </Row>
@@ -450,7 +473,9 @@ export default function ParamsPage() {
                   <Switch
                     checked={a.disable_graphic_element_process ?? false}
                     onChange={(v) =>
-                      st.setAdvanced({ disable_graphic_element_process: v })
+                      st.setAdvanced({
+                        disable_graphic_element_process: v || undefined,
+                      })
                     }
                   />
                 </Row>
@@ -462,7 +487,7 @@ export default function ParamsPage() {
                     checked={a.no_merge_alternating_line_numbers ?? false}
                     onChange={(v) =>
                       st.setAdvanced({
-                        no_merge_alternating_line_numbers: v,
+                        no_merge_alternating_line_numbers: v || undefined,
                       })
                     }
                   />
@@ -474,7 +499,9 @@ export default function ParamsPage() {
                   <Switch
                     checked={a.disable_same_text_fallback ?? false}
                     onChange={(v) =>
-                      st.setAdvanced({ disable_same_text_fallback: v })
+                      st.setAdvanced({
+                        disable_same_text_fallback: v || undefined,
+                      })
                     }
                   />
                 </Row>
@@ -492,7 +519,9 @@ export default function ParamsPage() {
                 >
                   <Switch
                     checked={a.ignore_cache ?? false}
-                    onChange={(v) => st.setAdvanced({ ignore_cache: v })}
+                    onChange={(v) =>
+                      st.setAdvanced({ ignore_cache: v || undefined })
+                    }
                   />
                 </Row>
                 <Row
@@ -560,7 +589,9 @@ export default function ParamsPage() {
                   <Switch
                     checked={a.no_send_temperature ?? false}
                     onChange={(v) =>
-                      st.setAdvanced({ no_send_temperature: v })
+                      st.setAdvanced({
+                        no_send_temperature: v || undefined,
+                      })
                     }
                   />
                 </Row>
@@ -571,7 +602,9 @@ export default function ParamsPage() {
                   <Switch
                     checked={a.enable_json_mode_if_requested ?? false}
                     onChange={(v) =>
-                      st.setAdvanced({ enable_json_mode_if_requested: v })
+                      st.setAdvanced({
+                        enable_json_mode_if_requested: v || undefined,
+                      })
                     }
                   />
                 </Row>
@@ -582,7 +615,9 @@ export default function ParamsPage() {
                   <Switch
                     checked={a.send_dashscope_header ?? false}
                     onChange={(v) =>
-                      st.setAdvanced({ send_dashscope_header: v })
+                      st.setAdvanced({
+                        send_dashscope_header: v || undefined,
+                      })
                     }
                   />
                 </Row>
