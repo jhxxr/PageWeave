@@ -323,3 +323,37 @@ Planned and implemented peel-off markitdown document-to-Markdown: independent si
 ### Next Steps
 
 - None - task complete
+
+
+## Session 9: Finish advanced translation params task
+
+**Date**: 2026-07-18
+**Task**: Finish advanced translation params task
+**Branch**: `master`
+
+### Summary
+
+Re-opened 07-06-advanced-params for full PRD check; fixed pages regex for open-ended ranges, sparse advanced store/UI semantics, and validation tests; archived task after green cargo/tsc.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9ea6165` | (see git log) |
+| `HEAD` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
