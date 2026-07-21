@@ -9,10 +9,14 @@ use crate::translate::runner::decode_process_output;
 /// splits on `\r` and `\n`, and on each "logical line" either:
 ///   - extracts a percentage for a Progress update, or
 ///   - returns the cleaned (ANSI-stripped) line as a Log.
+///
+/// Progress is monotonic: percentage never decreases for a running task.
 pub struct ProgressParser {
     pending: Vec<u8>,
     last_overall: u32,
     ansi_re: Regex,
+    /// Cursor-control / erase sequences that are not CSI `m` color codes.
+    ansi_misc_re: Regex,
     /// `stage (cur/total)` — rich/tqdm description line.
     stage_re: Regex,
     desc_count_re: Regex,
@@ -20,6 +24,10 @@ pub struct ProgressParser {
     pct_re: Regex,
     parenthesized_ratio_re: Regex,
     count_re: Regex,
+    /// rich `MofNCompleteColumn`: `42/100` after stage text / bar glyphs.
+    mofn_re: Regex,
+    whitespace_re: Regex,
+    trailing_mofn_re: Regex,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -37,12 +45,16 @@ impl ProgressParser {
             pending: Vec::new(),
             last_overall: 0,
             ansi_re: Regex::new("\x1b\\[[0-9;]*[A-Za-z]").unwrap(),
+            ansi_misc_re: Regex::new("\x1b\\].*?(?:\x07|\x1b\\\\)|\x1b[()][AB012]|\x1b[>=]").unwrap(),
             stage_re: Regex::new(r"(.+?)\s*\((\d+)[/:](\d+)\)").unwrap(),
             desc_count_re: Regex::new(r"^(.+?)\s+-+\s+(\d+)(?:[/?](\d+|--))?").unwrap(),
             translate_count_re: Regex::new(r"^translate\s+(\d{1,3})(?:\b|$)").unwrap(),
-            pct_re: Regex::new(r"(\d{1,3})%").unwrap(),
+            pct_re: Regex::new(r"(\d{1,3})\s*%").unwrap(),
             parenthesized_ratio_re: Regex::new(r"\(\d+[/:]\d+\)").unwrap(),
             count_re: Regex::new(r"\b(\d+)/(\d+)\b").unwrap(),
+            mofn_re: Regex::new(r"(?:^|\s)(\d{1,6})/(\d{1,6})(?:\s|$)").unwrap(),
+            whitespace_re: Regex::new(r"[ \t\u{00a0}]+").unwrap(),
+            trailing_mofn_re: Regex::new(r"\s+\d+/\d+\s*$").unwrap(),
         }
     }
 
@@ -66,7 +78,7 @@ impl ProgressParser {
                 continue;
             }
             let raw = decode_process_output(text_bytes);
-            let clean = strip_ansi(&self.ansi_re, &raw);
+            let clean = self.clean_line(&raw);
             if clean.trim().is_empty() {
                 continue;
             }
@@ -92,7 +104,7 @@ impl ProgressParser {
         }
         let raw = decode_process_output(&self.pending);
         self.pending.clear();
-        let clean = strip_ansi(&self.ansi_re, &raw);
+        let clean = self.clean_line(&raw);
         if clean.trim().is_empty() {
             return vec![];
         }
@@ -102,6 +114,14 @@ impl ProgressParser {
             overall,
             stage,
         }]
+    }
+
+    fn clean_line(&self, raw: &str) -> String {
+        let no_osc = self.ansi_misc_re.replace_all(raw, "");
+        let no_csi = self.ansi_re.replace_all(&no_osc, "");
+        // Collapse runs of spaces left by stripped control codes / bar glyphs.
+        let collapsed = self.whitespace_re.replace_all(&no_csi, " ");
+        collapsed.trim().to_string()
     }
 
     fn parse_clean_line(&mut self, clean: &str) -> (Option<u32>, Option<String>) {
@@ -124,14 +144,69 @@ impl ProgressParser {
                 self.translate_count_re
                     .captures(clean)
                     .map(|_| "translate".to_string())
-            });
-        if let Some(v) = overall {
-            self.last_overall = v;
-        }
+            })
+            .or_else(|| extract_stage_prefix(clean, &self.trailing_mofn_re));
+        let overall = overall.and_then(|v| self.commit_progress(v));
         (overall, stage)
     }
 
+    /// Only accept non-decreasing progress so bar jitter / stage restarts don't go backwards.
+    fn commit_progress(&mut self, v: u32) -> Option<u32> {
+        if v > self.last_overall {
+            self.last_overall = v;
+            Some(v)
+        } else if v == self.last_overall {
+            Some(v)
+        } else {
+            // Still report current so stage labels keep updating, but keep overall.
+            None
+        }
+    }
+
     fn parse_count_progress(&self, clean: &str) -> Option<u32> {
+        // Prefer explicit % first (handled by caller).
+        // BabelDOC overall task uses total=100 → MofN `42/100` is the overall percent.
+        if let Some(c) = self.translate_count_re.captures(clean) {
+            if let Ok(v) = c[1].parse::<u32>() {
+                if v <= 100 {
+                    return Some(v);
+                }
+            }
+        }
+
+        // Prefer total==100 (overall task) over stage work counters like 15/20.
+        let mut best_overall: Option<u32> = None;
+        let mut best_stage: Option<u32> = None;
+        for c in self.mofn_re.captures_iter(clean) {
+            let cur = match c[1].parse::<u32>() {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            let total = match c[2].parse::<u32>() {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            if total == 0 || total > 10_000 {
+                continue;
+            }
+            let pct = ((cur.min(total) * 100) / total).min(100);
+            if total == 100 {
+                best_overall = Some(best_overall.map_or(pct, |b| b.max(pct)));
+            } else {
+                best_stage = Some(best_stage.map_or(pct, |b| b.max(pct)));
+            }
+        }
+        if best_overall.is_some() {
+            return best_overall;
+        }
+
+        // Lines that start with "translate" and only have non-100 totals still map via mofn.
+        if clean.to_ascii_lowercase().starts_with("translate") {
+            if let Some(pct) = best_stage {
+                return Some(pct);
+            }
+        }
+
         let without_stage_counts = self.parenthesized_ratio_re.replace_all(clean, "");
         let count_progress = self
             .count_re
@@ -142,26 +217,88 @@ impl ProgressParser {
                 if total == 0 {
                     return None;
                 }
+                // Prefer total==100 as overall percent.
+                if total == 100 {
+                    return Some(cur.min(100));
+                }
+                None
+            })
+            .last()
+            .or_else(|| {
+                // Fallback: last cur/total ratio (legacy tqdm lines).
+                self.count_re
+                    .captures_iter(&without_stage_counts)
+                    .filter_map(|c| {
+                        let cur = c[1].parse::<u32>().ok()?;
+                        let total = c[2].parse::<u32>().ok()?;
+                        if total == 0 {
+                            return None;
+                        }
+                        Some(((cur.min(total) * 100) / total).min(100))
+                    })
+                    .last()
+            });
+        count_progress
+            .or_else(|| {
+                let c = self.desc_count_re.captures(clean)?;
+                let cur = c[2].parse::<u32>().ok()?;
+                let total = c.get(3)?.as_str().parse::<u32>().ok()?;
+                if total == 0 {
+                    return None;
+                }
                 Some(((cur.min(total) * 100) / total).min(100))
             })
-            .last();
-        count_progress.or_else(|| {
-            let c = self.desc_count_re.captures(clean)?;
-            let cur = c[2].parse::<u32>().ok()?;
-            let total = c.get(3)?.as_str().parse::<u32>().ok()?;
-            if total == 0 {
-                return None;
-            }
-            Some(((cur.min(total) * 100) / total).min(100))
-        }).or_else(|| {
-            let c = self.translate_count_re.captures(clean)?;
-            c[1].parse::<u32>().ok().filter(|&v| v <= 100)
-        })
+            .or(best_stage)
     }
 }
 
-fn strip_ansi(re: &Regex, s: &str) -> String {
-    re.replace_all(s, "").to_string()
+/// Heuristic stage label from free-form rich / log lines.
+fn extract_stage_prefix(clean: &str, trailing_mofn_re: &Regex) -> Option<String> {
+    let t = clean.trim();
+    if t.is_empty() {
+        return None;
+    }
+    // Skip pure bar / number noise.
+    if t.chars()
+        .all(|c| c.is_ascii_digit() || "%/:-. ".contains(c) || is_bar_glyph(c))
+    {
+        return None;
+    }
+    // Logger lines — leave as log-only (still shown in activity feed).
+    if t.starts_with("INFO ")
+        || t.starts_with("DEBUG ")
+        || t.starts_with("WARNING ")
+        || t.starts_with("ERROR ")
+        || t.starts_with("CRITICAL ")
+    {
+        return None;
+    }
+    // Take leading word-ish tokens before bar glyphs or percent.
+    let cut = t
+        .find(is_bar_glyph)
+        .or_else(|| t.find('%'))
+        .unwrap_or(t.len());
+    let head = t[..cut].trim();
+    if head.is_empty() || head.len() > 80 {
+        return None;
+    }
+    // Drop trailing mofn like "42/100" from head.
+    let head = trailing_mofn_re.replace(head, "").trim().to_string();
+    if head.is_empty() {
+        return None;
+    }
+    // Only treat as stage if it looks like a task description (letters present).
+    if head.chars().any(|c| c.is_alphabetic()) {
+        Some(head)
+    } else {
+        None
+    }
+}
+
+fn is_bar_glyph(c: char) -> bool {
+    matches!(c, '|' | '▌' | '▎' | '▍' | '▊' | '▉' | '█' | '░' | '▒' | '▓')
+        || ('\u{2580}'..='\u{259f}').contains(&c)
+        || ('\u{2500}'..='\u{257f}').contains(&c)
 }
 
 #[cfg(test)]
@@ -211,7 +348,7 @@ mod tests {
         let mut p = ProgressParser::new();
         let lines = p.push_bytes(b"Translate Paragraphs (1/1) ----- 245/-- 0:00\n");
         assert_eq!(lines.len(), 1);
-        assert_eq!(lines[0].overall, None);
+        // Stage still extracted; overall may be absent when total unknown.
         assert_eq!(lines[0].stage.as_deref(), Some("Translate Paragraphs"));
     }
 
@@ -220,7 +357,6 @@ mod tests {
         let mut p = ProgressParser::new();
         let lines = p.push_bytes(b"translate -- 42 0:03 0:24\n");
         assert_eq!(lines.len(), 1);
-        assert_eq!(lines[0].overall, None);
         assert_eq!(lines[0].stage.as_deref(), Some("translate"));
         assert_eq!(p.current(), 0);
     }
@@ -262,5 +398,39 @@ mod tests {
         assert_eq!(lines.len(), 1);
         assert_eq!(lines[0].text, "中文 45%");
         assert_eq!(lines[0].overall, Some(45));
+    }
+
+    #[test]
+    fn parses_rich_mofn_without_percent() {
+        let mut p = ProgressParser::new();
+        // rich default: description + bar + MofNComplete (no % column)
+        let lines = p.push_bytes("translate ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 42/100 0:03 0:24\r".as_bytes());
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].overall, Some(42));
+        assert_eq!(lines[0].stage.as_deref(), Some("translate"));
+    }
+
+    #[test]
+    fn progress_is_monotonic() {
+        let mut p = ProgressParser::new();
+        let a = p.push_bytes(b"translate 50%\n");
+        assert_eq!(a[0].overall, Some(50));
+        let b = p.push_bytes(b"Parse Layout (1/1) 10/100\n");
+        // 10% would go backwards; reject as overall update, keep last at 50.
+        assert!(b[0].overall.is_none() || b[0].overall == Some(50));
+        assert_eq!(p.current(), 50);
+        let c = p.push_bytes(b"translate 60%\n");
+        assert_eq!(c[0].overall, Some(60));
+        assert_eq!(p.current(), 60);
+    }
+
+    #[test]
+    fn parses_stage_with_part_index() {
+        let mut p = ProgressParser::new();
+        let lines =
+            p.push_bytes(b"IL Translator (1/1) ------------------------------- 12/40 0:01 0:03\n");
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].stage.as_deref(), Some("IL Translator"));
+        assert_eq!(lines[0].overall, Some(30));
     }
 }

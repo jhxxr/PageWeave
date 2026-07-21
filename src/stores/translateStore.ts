@@ -35,6 +35,8 @@ interface TranslateState {
   status: TaskStatus;
   progress: number;
   stage: string;
+  /** Last non-empty log line for the brief activity strip (always updated). */
+  latestActivity: string;
   logs: LogLine[];
   outputFiles: string[];
   statusMessage: string;
@@ -85,6 +87,7 @@ export const useTranslateStore = create<TranslateState>((set, get) => ({
   status: "idle",
   progress: 0,
   stage: "",
+  latestActivity: "",
   logs: [],
   outputFiles: [],
   statusMessage: "",
@@ -112,14 +115,20 @@ export const useTranslateStore = create<TranslateState>((set, get) => ({
     })),
   setProgress: (p, stage) =>
     set((st) => ({
-      progress: p,
-      stage: stage ?? st.stage,
+      // Monotonic while running: never decrease mid-task.
+      progress:
+        st.status === "running" ? Math.max(st.progress, p) : p,
+      stage: stage && stage.length > 0 ? stage : st.stage,
     })),
   appendLog: (text, stream) =>
-    set((st) => ({
-      logs: [...st.logs, { id: logId++, text, stream }].slice(-500),
-    })),
-  clearLogs: () => set({ logs: [] }),
+    set((st) => {
+      const trimmed = text.trim();
+      return {
+        logs: [...st.logs, { id: logId++, text, stream }].slice(-500),
+        latestActivity: trimmed || st.latestActivity,
+      };
+    }),
+  clearLogs: () => set({ logs: [], latestActivity: "" }),
   setOutputFiles: (f) => set({ outputFiles: f }),
   setStatusMessage: (m) => set({ statusMessage: m }),
   setBabeldoc: (installed, hint) =>
@@ -144,6 +153,7 @@ export const useTranslateStore = create<TranslateState>((set, get) => ({
       status: "idle",
       progress: 0,
       stage: "",
+      latestActivity: "",
       logs: [],
       outputFiles: [],
       statusMessage: "",

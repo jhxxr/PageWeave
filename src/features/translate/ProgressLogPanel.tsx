@@ -111,6 +111,8 @@ export function cap(s: string): string {
 function progressStatus(status: TaskStatus): ProgressProps["status"] {
   if (status === "error") return "exception";
   if (status === "success") return "success";
+  // Keep the bar animated while running even at 0% so users see activity.
+  if (status === "running") return "active";
   return undefined;
 }
 

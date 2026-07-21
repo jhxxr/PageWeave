@@ -96,8 +96,16 @@ pub async fn run_translate(app: AppHandle, task_id: String, req: TranslateReques
         // Disable rich's legacy Windows renderer so it writes UTF-8 to the pipe
         // instead of trying the GBK console codepage.
         .env("PYTHONLEGACYWINDOWSSTDIO", "")
-        .env("FORCE_COLOR", "0")
-        .env("NO_COLOR", "1");
+        // Pipe is not a TTY: without these, rich.Live never refreshes progress lines
+        // (is_terminal=false → no live output → UI stuck at 0% with empty logs).
+        .env("FORCE_COLOR", "1")
+        .env("TTY_COMPATIBLE", "1")
+        .env("TTY_INTERACTIVE", "1")
+        .env("TERM", "xterm-256color")
+        .env("COLUMNS", "120")
+        .env("LINES", "40")
+        .env_remove("NO_COLOR");
+
 
     let mut child: Child = match cmd.spawn() {
         Ok(c) => c,
@@ -122,6 +130,19 @@ pub async fn run_translate(app: AppHandle, task_id: String, req: TranslateReques
         status: "running".into(),
         output_files: None,
         message: None,
+    });
+    // Immediate UI feedback before babeldoc prints anything (startup can take seconds).
+    emit(TranslateEvent::Progress {
+        task_id: task_id.clone(),
+        overall: 0,
+        stage: "starting".into(),
+        part_index: None,
+        total_parts: None,
+    });
+    emit(TranslateEvent::Log {
+        task_id: task_id.clone(),
+        line: "BabelDOC 已启动，正在初始化…".into(),
+        stream: "app".into(),
     });
 
     if let Some(reg) = app.try_state::<Arc<TaskRegistry>>() {
@@ -394,31 +415,23 @@ async fn read_stderr<R: tokio::io::AsyncRead + Unpin>(app: AppHandle, task_id: S
     let mut reader = reader;
     let mut parser = ProgressParser::new();
     let mut buf = [0u8; 4096];
+    let mut last_stage = String::new();
+    let mut last_emitted_overall: Option<u32> = None;
+    let mut last_activity = String::new();
     loop {
         match reader.read(&mut buf).await {
             Ok(0) => break,
             Ok(n) => {
                 let lines = parser.push_bytes(&buf[..n]);
                 for line in lines {
-                    if line.overall.is_some() || line.stage.is_some() {
-                        let _ = app.emit(
-                            "translate://progress",
-                            &TranslateEvent::Progress {
-                                task_id: task_id.clone(),
-                                overall: line.overall.unwrap_or_else(|| parser.current()),
-                                stage: line.stage.clone().unwrap_or_default(),
-                                part_index: None,
-                                total_parts: None,
-                            },
-                        );
-                    }
-                    let _ = app.emit(
-                        "translate://progress",
-                        &TranslateEvent::Log {
-                            task_id: task_id.clone(),
-                            line: mask_secrets(&line.text),
-                            stream: "stderr".into(),
-                        },
+                    emit_parsed_line(
+                        &app,
+                        &task_id,
+                        &line,
+                        parser.current(),
+                        &mut last_stage,
+                        &mut last_emitted_overall,
+                        &mut last_activity,
                     );
                 }
             }
@@ -427,27 +440,106 @@ async fn read_stderr<R: tokio::io::AsyncRead + Unpin>(app: AppHandle, task_id: S
     }
     // Flush trailing partial line.
     for line in parser.finish() {
-        if line.overall.is_some() || line.stage.is_some() {
-            let _ = app.emit(
-                "translate://progress",
-                &TranslateEvent::Progress {
-                    task_id: task_id.clone(),
-                    overall: line.overall.unwrap_or_else(|| parser.current()),
-                    stage: line.stage.clone().unwrap_or_default(),
-                    part_index: None,
-                    total_parts: None,
-                },
-            );
-        }
-        let _ = app.emit(
-            "translate://progress",
-            &TranslateEvent::Log {
-                task_id: task_id.clone(),
-                line: mask_secrets(&line.text),
-                stream: "stderr".into(),
-            },
+        emit_parsed_line(
+            &app,
+            &task_id,
+            &line,
+            parser.current(),
+            &mut last_stage,
+            &mut last_emitted_overall,
+            &mut last_activity,
         );
     }
+}
+
+fn emit_parsed_line(
+    app: &AppHandle,
+    task_id: &str,
+    line: &crate::translate::progress::ParsedLine,
+    current_overall: u32,
+    last_stage: &mut String,
+    last_emitted_overall: &mut Option<u32>,
+    last_activity: &mut String,
+) {
+    let stage = line.stage.clone().unwrap_or_else(|| last_stage.clone());
+    let overall = line.overall.unwrap_or(current_overall);
+    let progress_changed = last_emitted_overall.map(|p| p != overall).unwrap_or(true)
+        || (!stage.is_empty() && stage != *last_stage);
+
+    if progress_changed && (line.overall.is_some() || line.stage.is_some() || overall > 0) {
+        let _ = app.emit(
+            "translate://progress",
+            &TranslateEvent::Progress {
+                task_id: task_id.to_string(),
+                overall,
+                stage: stage.clone(),
+                part_index: None,
+                total_parts: None,
+            },
+        );
+        *last_emitted_overall = Some(overall);
+        if !stage.is_empty() {
+            *last_stage = stage;
+        }
+    }
+
+    // Always emit meaningful log lines so the activity feed shows the job is alive.
+    // Skip pure bar redraws that only restate the same progress text.
+    let text = mask_secrets(&line.text);
+    if text.is_empty() {
+        return;
+    }
+    let is_bar_noise = is_progress_bar_noise(&text);
+    if is_bar_noise && text == *last_activity {
+        return;
+    }
+    // Throttle identical progress-bar redraws but always pass through real log lines.
+    if is_bar_noise {
+        *last_activity = text.clone();
+    } else {
+        last_activity.clear();
+    }
+    let _ = app.emit(
+        "translate://progress",
+        &TranslateEvent::Log {
+            task_id: task_id.to_string(),
+            line: text,
+            stream: "stderr".into(),
+        },
+    );
+}
+
+/// Detect rich/tqdm progress-bar redraw lines (high noise when CR-refreshed).
+fn is_progress_bar_noise(text: &str) -> bool {
+    let t = text.trim();
+    if t.is_empty() {
+        return true;
+    }
+    // Has percentage or mofn and mostly description + bar glyphs.
+    let has_pct = t.contains('%');
+    let has_mofn = t.chars().any(|c| c == '/')
+        && t.split_whitespace().any(|w| {
+            let mut parts = w.split('/');
+            matches!(
+                (parts.next(), parts.next(), parts.next()),
+                (Some(a), Some(b), None)
+                    if a.chars().all(|c| c.is_ascii_digit())
+                        && b.chars().all(|c| c.is_ascii_digit())
+            )
+        });
+    if !(has_pct || has_mofn) {
+        return false;
+    }
+    // Logger lines with a percent somewhere are still real logs.
+    if t.starts_with("INFO ")
+        || t.starts_with("DEBUG ")
+        || t.starts_with("WARNING ")
+        || t.starts_with("ERROR ")
+        || t.starts_with("CRITICAL ")
+    {
+        return false;
+    }
+    true
 }
 
 /// Replace anything that looks like an API key on a log line with a mask.

@@ -179,9 +179,10 @@ export default function TranslatePage() {
     st.clearLogs();
     st.setOutputFiles([]);
     st.setStatusMessage("");
-    st.setProgress(0, "");
+    st.setProgress(0, t("translate.stageStarting"));
     st.setTaskId(null);
     st.setStatus("running");
+    st.appendLog(t("translate.activityWaiting"), "app");
     const req: TranslateRequest = {
       pdf_paths: [first.path],
       output_dir: st.outputDir,
@@ -442,11 +443,15 @@ export default function TranslatePage() {
         <ProgressOverview
           percent={st.progress}
           status={st.status}
-          stage={st.stage}
-          latestLog={developerMode ? st.logs[st.logs.length - 1]?.text : undefined}
+          stage={st.stage || (st.status === "running" ? t("translate.stageStarting") : "")}
+          latestLog={
+            st.latestActivity ||
+            st.logs[st.logs.length - 1]?.text ||
+            (st.status === "running" ? t("translate.activityWaiting") : undefined)
+          }
           stageLabel={t("translate.currentStage")}
-          latestLabel={t("tasks.latestLog")}
-          showLatest={developerMode}
+          latestLabel={t("translate.activity")}
+          showLatest
         />
         {st.statusMessage && (
           <Paragraph type={st.status === "error" ? "danger" : undefined} style={{ marginTop: 12, marginBottom: 0 }}>
