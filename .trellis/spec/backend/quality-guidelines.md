@@ -686,7 +686,7 @@ def main() -> int:
 - When `enhance_compatibility` is `Some(false)`, emit the individual sub-flags (`--skip-clean`, `--disable-rich-text-translate`, `--dual-translate-first`) per their own toggles; do **not** emit `--enhance-compatibility`.
 - OCR tri-state emits exactly one of `--auto-enable-ocr-workaround` / `--skip-scanned-detection` / `--ocr-workaround`.
 - dual-only flags (`--dual-translate-first`, `--use-alternating-pages-dual`) are emitted only when `output_mode != Mono`.
-- `--watermark-output-mode no_watermark` and `--report-interval 0.1` stay hardcoded (not exposed in the advanced UI).
+- `--watermark-output-mode no_watermark` and `--report-interval 0.5` stay hardcoded (not exposed in the advanced UI).
 - `primary_font_family = "auto"` and empty-string text fields omit the flag.
 - `glossary_files` join with `,` (so paths containing `,` are rejected in validation).
 - New curated flags must appear in `babeldoc-sidecar --help`; before adding one, run the help smoke check.

@@ -462,11 +462,18 @@ fn emit_parsed_line(
     last_activity: &mut String,
 ) {
     let stage = line.stage.clone().unwrap_or_else(|| last_stage.clone());
+    // Only advance overall from this line when the parser accepted a new value;
+    // stage-only lines keep the last known overall (do not re-broadcast 0).
     let overall = line.overall.unwrap_or(current_overall);
-    let progress_changed = last_emitted_overall.map(|p| p != overall).unwrap_or(true)
-        || (!stage.is_empty() && stage != *last_stage);
+    let overall_changed = line
+        .overall
+        .map(|v| last_emitted_overall.map(|p| p != v).unwrap_or(true))
+        .unwrap_or(false);
+    let stage_changed = !stage.is_empty() && stage != *last_stage;
 
-    if progress_changed && (line.overall.is_some() || line.stage.is_some() || overall > 0) {
+    if (overall_changed || stage_changed)
+        && (line.overall.is_some() || line.stage.is_some())
+    {
         let _ = app.emit(
             "translate://progress",
             &TranslateEvent::Progress {
@@ -477,28 +484,25 @@ fn emit_parsed_line(
                 total_parts: None,
             },
         );
-        *last_emitted_overall = Some(overall);
+        if line.overall.is_some() {
+            *last_emitted_overall = Some(overall);
+        }
         if !stage.is_empty() {
             *last_stage = stage;
         }
     }
 
-    // Always emit meaningful log lines so the activity feed shows the job is alive.
-    // Skip pure bar redraws that only restate the same progress text.
+    // Real log lines only. Progress-bar CR redraws must never hit the UI log
+    // stream — they refresh many times per second and cause flicker.
     let text = mask_secrets(&line.text);
-    if text.is_empty() {
+    if text.is_empty() || is_progress_bar_noise(&text) {
         return;
     }
-    let is_bar_noise = is_progress_bar_noise(&text);
-    if is_bar_noise && text == *last_activity {
+    // De-dupe identical consecutive logger lines (rich may re-emit on refresh).
+    if text == *last_activity {
         return;
     }
-    // Throttle identical progress-bar redraws but always pass through real log lines.
-    if is_bar_noise {
-        *last_activity = text.clone();
-    } else {
-        last_activity.clear();
-    }
+    *last_activity = text.clone();
     let _ = app.emit(
         "translate://progress",
         &TranslateEvent::Log {

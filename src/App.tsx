@@ -121,6 +121,14 @@ export default function App() {
               break;
             case "progress":
               st.setProgress(ev.overall, ev.stage || undefined);
+              // Keep activity strip aligned with stage (stable), not bar redraws.
+              if (ev.stage) {
+                const label =
+                  ev.overall > 0
+                    ? `${ev.stage} · ${ev.overall}%`
+                    : ev.stage;
+                useTranslateStore.setState({ latestActivity: label });
+              }
               break;
             case "status":
               st.setStatus(ev.status as never);

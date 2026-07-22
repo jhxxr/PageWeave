@@ -165,7 +165,11 @@ impl ProgressParser {
 
     fn parse_count_progress(&self, clean: &str) -> Option<u32> {
         // Prefer explicit % first (handled by caller).
-        // BabelDOC overall task uses total=100 → MofN `42/100` is the overall percent.
+        // Overall-only signals (never stage-local 12/40):
+        //   1. `translate N` / `translate N/100` (babeldoc overall task)
+        //   2. any MofN / cur/total with total==100 (rich overall bar)
+        // Stage work counters stay stage labels only — mapping them to overall
+        // spikes the bar early and then monotonic commit freezes later updates.
         if let Some(c) = self.translate_count_re.captures(clean) {
             if let Ok(v) = c[1].parse::<u32>() {
                 if v <= 100 {
@@ -174,9 +178,7 @@ impl ProgressParser {
             }
         }
 
-        // Prefer total==100 (overall task) over stage work counters like 15/20.
         let mut best_overall: Option<u32> = None;
-        let mut best_stage: Option<u32> = None;
         for c in self.mofn_re.captures_iter(clean) {
             let cur = match c[1].parse::<u32>() {
                 Ok(v) => v,
@@ -186,38 +188,22 @@ impl ProgressParser {
                 Ok(v) => v,
                 Err(_) => continue,
             };
-            if total == 0 || total > 10_000 {
+            if total != 100 {
                 continue;
             }
-            let pct = ((cur.min(total) * 100) / total).min(100);
-            if total == 100 {
-                best_overall = Some(best_overall.map_or(pct, |b| b.max(pct)));
-            } else {
-                best_stage = Some(best_stage.map_or(pct, |b| b.max(pct)));
-            }
+            let pct = cur.min(100);
+            best_overall = Some(best_overall.map_or(pct, |b| b.max(pct)));
         }
         if best_overall.is_some() {
             return best_overall;
         }
 
-        // Lines that start with "translate" and only have non-100 totals still map via mofn.
-        if clean.to_ascii_lowercase().starts_with("translate") {
-            if let Some(pct) = best_stage {
-                return Some(pct);
-            }
-        }
-
         let without_stage_counts = self.parenthesized_ratio_re.replace_all(clean, "");
-        let count_progress = self
-            .count_re
+        self.count_re
             .captures_iter(&without_stage_counts)
             .filter_map(|c| {
                 let cur = c[1].parse::<u32>().ok()?;
                 let total = c[2].parse::<u32>().ok()?;
-                if total == 0 {
-                    return None;
-                }
-                // Prefer total==100 as overall percent.
                 if total == 100 {
                     return Some(cur.min(100));
                 }
@@ -225,21 +211,10 @@ impl ProgressParser {
             })
             .last()
             .or_else(|| {
-                // Fallback: last cur/total ratio (legacy tqdm lines).
-                self.count_re
-                    .captures_iter(&without_stage_counts)
-                    .filter_map(|c| {
-                        let cur = c[1].parse::<u32>().ok()?;
-                        let total = c[2].parse::<u32>().ok()?;
-                        if total == 0 {
-                            return None;
-                        }
-                        Some(((cur.min(total) * 100) / total).min(100))
-                    })
-                    .last()
-            });
-        count_progress
-            .or_else(|| {
+                // Legacy tqdm: only on the overall "translate" description line.
+                if !clean.to_ascii_lowercase().starts_with("translate") {
+                    return None;
+                }
                 let c = self.desc_count_re.captures(clean)?;
                 let cur = c[2].parse::<u32>().ok()?;
                 let total = c.get(3)?.as_str().parse::<u32>().ok()?;
@@ -248,7 +223,6 @@ impl ProgressParser {
                 }
                 Some(((cur.min(total) * 100) / total).min(100))
             })
-            .or(best_stage)
     }
 }
 
@@ -334,13 +308,14 @@ mod tests {
     }
 
     #[test]
-    fn parses_count_progress_line() {
+    fn stage_local_counts_do_not_set_overall() {
         let mut p = ProgressParser::new();
         let lines = p.push_bytes(b"Parse Layout (1/1) ----- 15/20 0:00\n");
         assert_eq!(lines.len(), 1);
-        assert_eq!(lines[0].overall, Some(75));
+        // Stage work units must not become overall % (would freeze monotonic bar).
+        assert_eq!(lines[0].overall, None);
         assert_eq!(lines[0].stage.as_deref(), Some("Parse Layout"));
-        assert_eq!(p.current(), 75);
+        assert_eq!(p.current(), 0);
     }
 
     #[test]
@@ -425,12 +400,25 @@ mod tests {
     }
 
     #[test]
-    fn parses_stage_with_part_index() {
+    fn parses_stage_with_part_index_without_overall() {
         let mut p = ProgressParser::new();
         let lines =
             p.push_bytes(b"IL Translator (1/1) ------------------------------- 12/40 0:01 0:03\n");
         assert_eq!(lines.len(), 1);
         assert_eq!(lines[0].stage.as_deref(), Some("IL Translator"));
-        assert_eq!(lines[0].overall, Some(30));
+        assert_eq!(lines[0].overall, None);
+        // Overall only from the translate task bar.
+        let t = p.push_bytes(b"translate ------------------------------- 42/100 0:01 0:03\n");
+        assert_eq!(t[0].overall, Some(42));
+        assert_eq!(p.current(), 42);
+    }
+
+    #[test]
+    fn percent_on_stage_line_is_accepted_as_overall() {
+        // Some rich columns print an explicit percentage on the overall bar only;
+        // if a stage line carries %, treat it as overall (still monotonic).
+        let mut p = ProgressParser::new();
+        let lines = p.push_bytes(b"translate 18%\n");
+        assert_eq!(lines[0].overall, Some(18));
     }
 }

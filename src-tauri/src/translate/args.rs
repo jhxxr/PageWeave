@@ -68,8 +68,10 @@ pub fn build_args(req: &TranslateRequest, api_key: &str) -> Vec<String> {
     // ---- Hardcoded MVP flags (not exposed in the advanced UI) ----
     args.push("--watermark-output-mode".into());
     args.push("no_watermark".into());
+    // 0.5s keeps the UI responsive without flooding the pipe with rich Live
+    // redraws (0.1s ≈ 10 Hz caused log flicker and event thrash).
     args.push("--report-interval".into());
-    args.push("0.1".into());
+    args.push("0.5".into());
 
     // ---- output_mode (unchanged) ----
     match req.output_mode {
@@ -221,7 +223,7 @@ mod tests {
             "--watermark-output-mode".into(),
             "no_watermark".into(),
             "--report-interval".into(),
-            "0.1".into(),
+            "0.5".into(),
             "--no-dual".into(),
         ]
     }

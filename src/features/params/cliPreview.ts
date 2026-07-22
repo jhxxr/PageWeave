@@ -50,7 +50,7 @@ export function previewCliArgs(
       break;
   }
 
-  out.push("--watermark-output-mode", "no_watermark", "--report-interval", "0.1");
+  out.push("--watermark-output-mode", "no_watermark", "--report-interval", "0.5");
 
   if (outputMode === "mono") out.push("--no-dual");
   else if (outputMode === "dual") out.push("--no-mono");

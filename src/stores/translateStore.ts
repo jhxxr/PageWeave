@@ -123,8 +123,10 @@ export const useTranslateStore = create<TranslateState>((set, get) => ({
   appendLog: (text, stream) =>
     set((st) => {
       const trimmed = text.trim();
+      // Cap list growth; backend already filters bar redraw noise.
       return {
-        logs: [...st.logs, { id: logId++, text, stream }].slice(-500),
+        logs: [...st.logs, { id: logId++, text, stream }].slice(-200),
+        // Prefer stable non-empty activity; ignore pure whitespace redraws.
         latestActivity: trimmed || st.latestActivity,
       };
     }),
